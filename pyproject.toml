@@ -1,0 +1,23 @@
+[project]
+name = "django-ninja-crane"
+version = "0.1.0"
+description = "Add versioning and migrations for your Django Ninja API."
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.0",
+    "django-ninja>=1.5.1",
+]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=5.2.8",
+    "pytest>=9.0.2",
+    "pytest-django>=4.11.1",
+    "ruff>=0.14.10",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "test_server.settings"
