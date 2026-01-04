@@ -18,5 +18,5 @@ class Parent(Schema):
 
 
 def test_generate_schema():
-    json_schema = Parent.json_schema()
+    _json_schema = Parent.json_schema()
     pass

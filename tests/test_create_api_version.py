@@ -1,3 +1,4 @@
+from test_app.api import PersonAddress, PersonFilter, PaginationParams
 import pytest
 
 from crane.api_version import ApiVersion, create_api_version
@@ -14,10 +15,10 @@ class TestCreateApiVersion:
         assert isinstance(api_version, ApiVersion)
 
     def test_has_persons_route(self, api_version):
-        assert "/persons" in api_version.path_operations
+        assert "/persons/" in api_version.path_operations
 
     def test_list_persons_operation(self, api_version):
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/"]
         list_op = next((op for op in ops if op.operation_id == "test_app_api_list_persons"), None)
 
         assert list_op is not None
@@ -25,11 +26,10 @@ class TestCreateApiVersion:
         assert list_op.path == "/persons/"
         assert list_op.query_params == {}
         assert list_op.path_params == {}
-        # Response should reference PersonOut in an array
-        assert 200 in list_op.response_bodies
+        assert "#/components/schemas/PersonOut" in list_op.response_bodies
 
     def test_get_person_operation(self, api_version):
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/{person_id}"]
         get_op = next((op for op in ops if op.operation_id == "test_app_api_get_person"), None)
 
         assert get_op is not None
@@ -40,7 +40,7 @@ class TestCreateApiVersion:
         assert get_op.path_params["person_id"].required is True
 
     def test_create_person_operation(self, api_version):
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/"]
         create_op = next(
             (op for op in ops if op.operation_id == "test_app_api_create_person"), None
         )
@@ -55,7 +55,7 @@ class TestCreateApiVersion:
         )
 
     def test_update_person_operation(self, api_version):
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/{person_id}"]
         update_op = next(
             (op for op in ops if op.operation_id == "test_app_api_update_person"), None
         )
@@ -68,7 +68,7 @@ class TestCreateApiVersion:
         assert update_op.request_body_schema is not None
 
     def test_delete_person_operation(self, api_version):
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/{person_id}"]
         delete_op = next(
             (op for op in ops if op.operation_id == "test_app_api_delete_person"), None
         )
@@ -80,7 +80,7 @@ class TestCreateApiVersion:
 
     def test_search_model_operation_query_params(self, api_version):
         """Query params from a Schema model should be flattened with source tracking."""
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/search/model"]
         search_op = next(
             (op for op in ops if op.operation_id == "test_app_api_search_persons_model"), None
         )
@@ -93,7 +93,12 @@ class TestCreateApiVersion:
         assert "name" in search_op.query_params
         assert "email" in search_op.query_params
         # Nested fields from PersonAddress
-        assert "address" in search_op.query_params
+        assert "street" in search_op.query_params
+        assert "city" in search_op.query_params
+        assert (
+            search_op.query_params["city"].source
+            == f"{PersonAddress.__module__}.{PersonAddress.__qualname__}"
+        )
         # Check source tracking - fields should reference their source schema
         name_field = search_op.query_params["name"]
         assert name_field.source is not None
@@ -101,7 +106,7 @@ class TestCreateApiVersion:
 
     def test_search_primitive_operation_query_params(self, api_version):
         """Primitive query params should not have a source schema."""
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/search/primitive"]
         search_op = next(
             (op for op in ops if op.operation_id == "test_app_api_search_persons_primitive"), None
         )
@@ -119,9 +124,50 @@ class TestCreateApiVersion:
         assert search_op.query_params["name"].required is False
         assert search_op.query_params["limit"].required is False
 
+    def test_search_merged_operation_query_params(self, api_version):
+        """Query params from multiple merged Schema models should all be extracted."""
+        ops = api_version.path_operations["/persons/search/merged"]
+        search_op = next(
+            (op for op in ops if op.operation_id == "test_app_api_search_persons_merged"), None
+        )
+
+        assert search_op is not None
+        assert search_op.method == "get"
+        assert search_op.path == "/persons/search/merged"
+
+        # Fields from PersonFilter
+        assert "name" in search_op.query_params
+        assert "email" in search_op.query_params
+        assert "street" in search_op.query_params
+        assert "city" in search_op.query_params
+
+        # Fields from PaginationParams
+        assert "page" in search_op.query_params
+        assert "page_size" in search_op.query_params
+
+        # Check source tracking for PersonFilter fields
+        assert (
+            search_op.query_params["name"].source
+            == f"{PersonFilter.__module__}.{PersonFilter.__qualname__}"
+        )
+        assert (
+            search_op.query_params["street"].source
+            == f"{PersonAddress.__module__}.{PersonAddress.__qualname__}"
+        )
+
+        # Check source tracking for PaginationParams fields
+        assert (
+            search_op.query_params["page"].source
+            == f"{PaginationParams.__module__}.{PaginationParams.__qualname__}"
+        )
+        assert (
+            search_op.query_params["page_size"].source
+            == f"{PaginationParams.__module__}.{PaginationParams.__qualname__}"
+        )
+
     def test_upload_multipart_operation(self, api_version):
         """Multipart endpoint with body schema and file."""
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/upload"]
         upload_op = next((op for op in ops if op.operation_id == "test_app_api_upload_file"), None)
 
         assert upload_op is not None
@@ -130,12 +176,12 @@ class TestCreateApiVersion:
         # Should have request body with union type PersonIn | PersonOut
         assert upload_op.request_body_schema is not None
         refs = [ref for ref in upload_op.request_body_schema if isinstance(ref, str)]
-        assert any("PersonIn" in ref for ref in refs)
-        assert any("PersonOut" in ref for ref in refs)
+        assert any("SimplePerson" in ref for ref in refs)
+        assert any("ComplexPerson" in ref for ref in refs)
 
     def test_upload_single_file_operation(self, api_version):
         """File-only upload endpoint."""
-        ops = api_version.path_operations["/persons"]
+        ops = api_version.path_operations["/persons/upload_file"]
         upload_op = next(
             (op for op in ops if op.operation_id == "test_app_api_upload_single"), None
         )

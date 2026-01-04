@@ -1,4 +1,6 @@
+from pydantic.fields import Field
 from datetime import datetime
+from typing import Literal, Annotated
 
 from ninja import File, Query, Router, Schema
 from ninja.files import UploadedFile
@@ -62,6 +64,19 @@ class PersonFilter(Schema):
     address: PersonAddress
 
 
+class PaginationParams(Schema):
+    page: int = 1
+    page_size: int = 20
+
+
+class SimplePerson(PersonIn):
+    type: Literal["simple"]
+
+
+class ComplexPerson(PersonIn):
+    type: Literal["complex"]
+
+
 @router.get("/search/model", response=dict[str, PersonOut])
 def search_persons_model(request, filters: Query[PersonFilter]):
     """Query params as a model."""
@@ -82,8 +97,24 @@ def search_persons_primitive(request, name: str | None = None, limit: int = 10):
     return qs[:limit]
 
 
+@router.get("/search/merged", response=list[PersonOut])
+def search_persons_merged(
+    request, filters: Query[PersonFilter], pagination: Query[PaginationParams]
+):
+    """Query params from multiple merged Schema models."""
+    qs = Person.objects.all()
+    if filters.name:
+        qs = qs.filter(name__icontains=filters.name)
+    offset = (pagination.page - 1) * pagination.page_size
+    return qs[offset : offset + pagination.page_size]
+
+
 @router.post("/upload")
-def upload_file(request, body: PersonIn | PersonOut, file_up: UploadedFile = File(...)):
+def upload_file(
+    request,
+    body: Annotated[SimplePerson | ComplexPerson, Field(..., discriminator="type")],
+    file_up: UploadedFile = File(...),
+):
     """Multipart file upload endpoint."""
     return {
         "name": file_up.name,
