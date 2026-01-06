@@ -3,7 +3,7 @@ from typing import Any, Generator, Literal, Tuple, Type, cast
 
 from ninja import NinjaAPI
 from ninja.constants import NOT_SET
-from ninja.openapi.schema import REF_TEMPLATE
+from ninja.openapi.schema import OpenAPISchema, REF_TEMPLATE
 from ninja.operation import Operation, PathView
 from ninja.params import Body
 from ninja.schema import NinjaGenerateJsonSchema
@@ -48,6 +48,7 @@ class PathOperation(BaseModel):
     response_bodies: list[str]
     operation_id: str
     path: str
+    openapi_json: AnyJsonDict
 
 
 class ApiVersion(BaseModel):
@@ -312,9 +313,38 @@ def _convert_defs_to_component_keys(defs: dict[str, AnyJson]) -> dict[str, AnyJs
     return {REF_TEMPLATE.format(model=name): schema for name, schema in defs.items()}
 
 
+def _normalize_json_keys(obj: Any) -> AnyJson:
+    """Recursively convert all dict keys to strings for JSON compatibility."""
+    if isinstance(obj, dict):
+        return {str(k): _normalize_json_keys(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_normalize_json_keys(item) for item in obj]
+    else:
+        return obj
+
+
+class _OperationSchemaExtractor(OpenAPISchema):
+    """Helper to extract OpenAPI JSON for individual operations without triggering full schema generation."""
+
+    def __init__(self, api: NinjaAPI) -> None:
+        # Initialize without calling parent __init__ to avoid triggering get_paths()
+        self.api = api
+        self.path_prefix = ""
+        self.schemas: dict[str, Any] = {}
+        self.securitySchemes: dict[str, Any] = {}
+        self.all_operation_ids: set[str] = set()
+
+    def get_operation_json(self, operation: Operation) -> AnyJsonDict:
+        """Get the full OpenAPI JSON for a single operation."""
+        raw = self.operation_details(operation)
+        return cast(AnyJsonDict, _normalize_json_keys(raw))
+
+
 def create_api_version(api: NinjaAPI) -> ApiVersion:
     schema_defs: dict[str, AnyJson] = {}
     path_operations: dict[str, list[PathOperation]] = defaultdict(list)
+    schema_extractor = _OperationSchemaExtractor(api)
+
     for router_prefix, router in api._routers:
         path: PathView
         for path_str, path in router.path_operations.items():
@@ -332,6 +362,8 @@ def create_api_version(api: NinjaAPI) -> ApiVersion:
                 cookie_params, cookie_schemas = _extract_param_fields(operation, "cookie")
                 schema_defs.update(cookie_schemas)
 
+                openapi_json = schema_extractor.get_operation_json(operation)
+
                 for method in operation.methods:
                     path_operations[router_prefix + path_str].append(
                         PathOperation(
@@ -344,6 +376,7 @@ def create_api_version(api: NinjaAPI) -> ApiVersion:
                             operation_id=operation.operation_id
                             or get_openapi_operation_id(operation),  # type: ignore
                             path=router_prefix + path_str,
+                            openapi_json=openapi_json,
                         )
                     )
 
