@@ -11,10 +11,13 @@ from crane.migrations_generator import (
     LoadedMigration,
     MigrationChainError,
     MigrationLoadError,
+    _analyze_schema_change,
     _get_next_sequence,
     _parse_migration_filename,
+    _schema_ref_to_name,
     _slugify,
     detect_changes,
+    generate_data_migrations_code,
     generate_migration,
     get_known_api_state,
     load_migrations,
@@ -526,3 +529,251 @@ class TestGenerateMigration:
             for key in list(sys.modules.keys()):
                 if key.startswith("gen_no_change"):
                     del sys.modules[key]
+
+
+# === Schema Ref Conversion Tests ===
+
+
+class TestSchemaRefToName:
+    def test_simple_name(self):
+        assert _schema_ref_to_name("#/components/schemas/Person") == "person"
+
+    def test_camel_case_conversion(self):
+        assert _schema_ref_to_name("#/components/schemas/PersonOut") == "person_out"
+
+    def test_multiple_capitals(self):
+        assert _schema_ref_to_name("#/components/schemas/HTTPError") == "h_t_t_p_error"
+
+    def test_nested_path(self):
+        assert _schema_ref_to_name("#/components/schemas/UserAddressOut") == "user_address_out"
+
+
+# === Schema Change Analysis Tests ===
+
+
+class TestAnalyzeSchemaChange:
+    def test_added_optional_field(self):
+        old_schema = {"properties": {"name": {"type": "string"}}}
+        new_schema = {
+            "properties": {
+                "name": {"type": "string"},
+                "is_active": {"type": "boolean", "default": True},
+            }
+        }
+
+        added, removed, breaking = _analyze_schema_change(old_schema, new_schema)
+
+        assert len(added) == 1
+        assert added[0][0] == "is_active"
+        assert removed == []
+        assert not breaking
+
+    def test_added_required_field_is_breaking(self):
+        old_schema = {"properties": {"name": {"type": "string"}}}
+        new_schema = {
+            "properties": {
+                "name": {"type": "string"},
+                "email": {"type": "string"},
+            },
+            "required": ["email"],
+        }
+
+        added, removed, breaking = _analyze_schema_change(old_schema, new_schema)
+
+        assert len(added) == 1
+        assert breaking
+
+    def test_removed_field(self):
+        old_schema = {
+            "properties": {
+                "name": {"type": "string"},
+                "legacy_id": {"type": "integer"},
+            }
+        }
+        new_schema = {"properties": {"name": {"type": "string"}}}
+
+        added, removed, breaking = _analyze_schema_change(old_schema, new_schema)
+
+        assert added == []
+        assert removed == ["legacy_id"]
+        assert not breaking
+
+    def test_type_change_is_breaking(self):
+        old_schema = {"properties": {"count": {"type": "integer"}}}
+        new_schema = {"properties": {"count": {"type": "string"}}}
+
+        added, removed, breaking = _analyze_schema_change(old_schema, new_schema)
+
+        assert added == []
+        assert removed == []
+        assert breaking
+
+    def test_new_required_on_existing_field_is_breaking(self):
+        old_schema = {"properties": {"name": {"type": "string"}}}
+        new_schema = {
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        }
+
+        added, removed, breaking = _analyze_schema_change(old_schema, new_schema)
+
+        assert breaking
+
+
+# === Data Migrations Code Generation Tests ===
+
+
+class TestGenerateDataMigrationsCode:
+    def test_returns_none_for_operation_only_changes(self):
+        from crane.delta import OperationAdded
+
+        delta = VersionDelta(
+            actions=[
+                OperationAdded(
+                    path="/users",
+                    method="get",
+                    new_operation=PathOperation(
+                        method="get",
+                        path="/users",
+                        query_params={},
+                        path_params={},
+                        cookie_params={},
+                        request_body_schema=[],
+                        response_bodies=[],
+                        operation_id="list_users",
+                        openapi_json={},
+                    ),
+                )
+            ]
+        )
+
+        result = generate_data_migrations_code(delta, None, "v1")
+        assert result is None
+
+    def test_generates_code_for_schema_modified(self):
+        from crane.delta import SchemaDefinitionModified
+
+        delta = VersionDelta(
+            actions=[
+                SchemaDefinitionModified(
+                    schema_ref="#/components/schemas/PersonOut",
+                    old_schema={},
+                    new_schema={"properties": {"is_active": {"type": "boolean", "default": True}}},
+                )
+            ]
+        )
+
+        result = generate_data_migrations_code(delta, "v1", "v2")
+
+        assert result is not None
+        assert "def downgrade_person_out(data: dict) -> dict:" in result
+        assert "def upgrade_person_out(data: dict) -> dict:" in result
+        assert 'data.pop("is_active", None)' in result
+        assert "DataMigrationSet(" in result
+        assert "SchemaDowngrade" in result
+        assert "SchemaUpgrade" in result
+
+    def test_generates_code_for_schema_added(self):
+        from crane.delta import SchemaDefinitionAdded
+
+        delta = VersionDelta(
+            actions=[
+                SchemaDefinitionAdded(
+                    schema_ref="#/components/schemas/StatsOut",
+                    new_schema={
+                        "properties": {
+                            "count": {"type": "integer"},
+                            "avg": {"type": "number"},
+                        }
+                    },
+                )
+            ]
+        )
+
+        result = generate_data_migrations_code(delta, "v1", "v2")
+
+        assert result is not None
+        assert "def downgrade_stats_out(data: dict) -> dict:" in result
+        assert 'data.pop("count", None)' in result
+        assert 'data.pop("avg", None)' in result
+
+    def test_generates_code_for_schema_removed(self):
+        from crane.delta import SchemaDefinitionRemoved
+
+        delta = VersionDelta(
+            actions=[
+                SchemaDefinitionRemoved(
+                    schema_ref="#/components/schemas/LegacyOut",
+                    old_schema={
+                        "properties": {
+                            "old_field": {"type": "string"},
+                        }
+                    },
+                )
+            ]
+        )
+
+        result = generate_data_migrations_code(delta, "v1", "v2")
+
+        assert result is not None
+        assert "def upgrade_legacy_out(data: dict) -> dict:" in result
+        assert "NotImplementedError" in result
+
+    def test_uses_default_value_for_optional_field(self):
+        from crane.delta import SchemaDefinitionModified
+
+        delta = VersionDelta(
+            actions=[
+                SchemaDefinitionModified(
+                    schema_ref="#/components/schemas/PersonOut",
+                    old_schema={},
+                    new_schema={"properties": {"count": {"type": "integer", "default": 0}}},
+                )
+            ]
+        )
+
+        result = generate_data_migrations_code(delta, "v1", "v2")
+
+        assert result is not None
+        assert 'data.setdefault("count", 0)' in result
+
+
+class TestRenderMigrationFileWithDataMigrations:
+    def test_renders_with_data_migrations_code(self):
+        delta = VersionDelta(actions=[])
+        data_code = """def downgrade_test(data: dict) -> dict:
+    data.pop("field", None)
+    return data
+
+data_migrations = DataMigrationSet(
+    schema_downgrades=[
+        SchemaDowngrade("#/components/schemas/Test", downgrade_test),
+    ],
+)"""
+
+        content = render_migration_file([], None, "v1", "Initial version", delta, data_code)
+
+        assert "from crane.data_migrations import" in content
+        assert "DataMigrationSet" in content
+        assert "SchemaDowngrade" in content
+        # SchemaUpgrade not imported since it's not used in this data_code
+        assert "SchemaUpgrade" not in content
+        assert "def downgrade_test(data: dict) -> dict:" in content
+        assert "data_migrations = DataMigrationSet(" in content
+
+    def test_rendered_file_with_data_migrations_is_valid_python(self):
+        delta = VersionDelta(actions=[])
+        data_code = """def downgrade_test(data: dict) -> dict:
+    data.pop("field", None)
+    return data
+
+data_migrations = DataMigrationSet(
+    schema_downgrades=[
+        SchemaDowngrade("#/components/schemas/Test", downgrade_test),
+    ],
+)"""
+
+        content = render_migration_file([], None, "v1", "Initial version", delta, data_code)
+
+        # Should not raise SyntaxError
+        compile(content, "<string>", "exec")

@@ -16,6 +16,7 @@ from pathlib import Path
 from ninja import NinjaAPI
 
 from crane.api_version import ApiVersion, create_api_version
+from crane.data_migrations import DataMigrationSet
 from crane.delta import VersionDelta, apply_delta_forwards, create_delta
 
 type MigrationRef = tuple[str, str]  # (module_path, version_name)
@@ -54,6 +55,7 @@ class LoadedMigration:
     from_version: str | None
     to_version: str
     delta: VersionDelta
+    data_migrations: DataMigrationSet | None = None
 
 
 # === Helper Functions ===
@@ -179,6 +181,7 @@ def load_migrations(migrations_module: str) -> list[LoadedMigration]:
         from_version = getattr(migration_module, "from_version", None)
         to_version = getattr(migration_module, "to_version", None)
         delta = getattr(migration_module, "delta", None)
+        data_migrations = getattr(migration_module, "data_migrations", None)
 
         if to_version is None:
             raise MigrationLoadError(
@@ -186,6 +189,12 @@ def load_migrations(migrations_module: str) -> list[LoadedMigration]:
             )
         if delta is None:
             raise MigrationLoadError(f"Migration {file_path} missing required 'delta' attribute")
+
+        # Validate data_migrations type if present
+        if data_migrations is not None and not isinstance(data_migrations, DataMigrationSet):
+            raise MigrationLoadError(
+                f"Migration {file_path} has invalid 'data_migrations' (expected DataMigrationSet)"
+            )
 
         migrations.append(
             LoadedMigration(
@@ -196,6 +205,7 @@ def load_migrations(migrations_module: str) -> list[LoadedMigration]:
                 from_version=from_version,
                 to_version=to_version,
                 delta=delta,
+                data_migrations=data_migrations,
             )
         )
 
@@ -257,12 +267,355 @@ def detect_changes(api: NinjaAPI, migrations_module: str) -> VersionDelta | None
     return delta
 
 
+# === Skeleton Generation ===
+
+
+def _schema_ref_to_name(schema_ref: str) -> str:
+    """Convert '#/components/schemas/PersonOut' to 'person_out'."""
+    name = schema_ref.rsplit("/", 1)[-1]
+    # Convert CamelCase to snake_case
+    result = []
+    for i, char in enumerate(name):
+        if char.isupper() and i > 0:
+            result.append("_")
+        result.append(char.lower())
+    return "".join(result)
+
+
+def _analyze_schema_change(
+    old_schema: dict[str, object],
+    new_schema: dict[str, object],
+) -> tuple[list[tuple[str, object]], list[str], bool]:
+    """Analyze a schema modification to determine what changed.
+
+    Returns:
+        - added_fields: list of (field_name, field_schema) for new fields
+        - removed_fields: list of field names that were removed
+        - has_breaking_changes: True if there are type changes or other breaking modifications
+    """
+    old_props = old_schema.get("properties", {})
+    new_props = new_schema.get("properties", {})
+    old_required = set(old_schema.get("required", []))
+    new_required = set(new_schema.get("required", []))
+
+    added_fields: list[tuple[str, object]] = []
+    removed_fields: list[str] = []
+    has_breaking_changes = False
+
+    # Check for non-property changes (type, title, etc.)
+    for key in set(old_schema.keys()) | set(new_schema.keys()):
+        if key in ("properties", "required"):
+            continue
+        if old_schema.get(key) != new_schema.get(key):
+            has_breaking_changes = True
+
+    # Analyze property changes
+    old_field_names = set(old_props.keys()) if isinstance(old_props, dict) else set()
+    new_field_names = set(new_props.keys()) if isinstance(new_props, dict) else set()
+
+    for field_name in new_field_names - old_field_names:
+        field_schema = new_props[field_name] if isinstance(new_props, dict) else {}
+        # Check if it's a new required field (breaking)
+        if field_name in new_required:
+            has_breaking_changes = True
+        added_fields.append((field_name, field_schema))
+
+    for field_name in old_field_names - new_field_names:
+        removed_fields.append(field_name)
+
+    # Check for modified fields (type changes are breaking)
+    for field_name in old_field_names & new_field_names:
+        if isinstance(old_props, dict) and isinstance(new_props, dict):
+            if old_props.get(field_name) != new_props.get(field_name):
+                has_breaking_changes = True
+
+    # New required constraint on existing field is breaking
+    newly_required = (new_required - old_required) & old_field_names
+    if newly_required:
+        has_breaking_changes = True
+
+    return added_fields, removed_fields, has_breaking_changes
+
+
+def _get_field_default(field_schema: object) -> str | None:
+    """Extract default value from field schema, return Python repr or None."""
+    if not isinstance(field_schema, dict):
+        return None
+    default = field_schema.get("default")
+    if default is not None:
+        return repr(default)
+    # For optional fields (nullable), None is a safe default
+    if field_schema.get("anyOf"):
+        for option in field_schema["anyOf"]:
+            if isinstance(option, dict) and option.get("type") == "null":
+                return "None"
+    return None
+
+
+def _generate_downgrade_function(
+    schema_name: str,
+    added_fields: list[tuple[str, object]],
+    removed_fields: list[str],
+    has_breaking_changes: bool,
+    from_version: str | None,
+    to_version: str,
+) -> str:
+    """Generate a downgrade transformer function."""
+    func_name = f"downgrade_{schema_name}"
+    from_desc = from_version or "initial"
+
+    lines = [
+        f"def {func_name}(data: dict) -> dict:",
+        f'    """{to_version} -> {from_desc}: Transform {schema_name} for older clients."""',
+    ]
+
+    if has_breaking_changes and not added_fields and not removed_fields:
+        lines.append(
+            '    raise NotImplementedError("Breaking schema change requires manual implementation")'
+        )
+    elif not added_fields and not removed_fields:
+        lines.append("    return data  # No field changes to transform")
+    else:
+        # Remove fields that were added in new version
+        for field_name, _ in added_fields:
+            lines.append(f'    data.pop("{field_name}", None)')
+
+        # Add back fields that were removed in new version (need defaults)
+        for field_name in removed_fields:
+            lines.append(
+                f'    raise NotImplementedError("Provide default value for removed field: {field_name}")'
+            )
+            lines.append(f'    # data.setdefault("{field_name}", <default_value>)')
+
+        if not removed_fields:
+            lines.append("    return data")
+
+    return "\n".join(lines)
+
+
+def _generate_upgrade_function(
+    schema_name: str,
+    added_fields: list[tuple[str, object]],
+    removed_fields: list[str],
+    has_breaking_changes: bool,
+    from_version: str | None,
+    to_version: str,
+) -> str:
+    """Generate an upgrade transformer function."""
+    func_name = f"upgrade_{schema_name}"
+    from_desc = from_version or "initial"
+
+    lines = [
+        f"def {func_name}(data: dict) -> dict:",
+        f'    """{from_desc} -> {to_version}: Transform {schema_name} from older clients."""',
+    ]
+
+    if has_breaking_changes and not added_fields and not removed_fields:
+        lines.append(
+            '    raise NotImplementedError("Breaking schema change requires manual implementation")'
+        )
+    elif not added_fields and not removed_fields:
+        lines.append("    return data  # No field changes to transform")
+    else:
+        needs_not_implemented = False
+
+        # Add fields that are new in the current version (for incoming requests)
+        for field_name, field_schema in added_fields:
+            default = _get_field_default(field_schema)
+            if default is not None:
+                lines.append(f'    data.setdefault("{field_name}", {default})')
+            else:
+                needs_not_implemented = True
+                lines.append(
+                    f'    raise NotImplementedError("Provide default value for new field: {field_name}")'
+                )
+                lines.append(f'    # data.setdefault("{field_name}", <default_value>)')
+
+        # Remove fields that don't exist in current version
+        for field_name in removed_fields:
+            lines.append(f'    data.pop("{field_name}", None)')
+
+        if not needs_not_implemented:
+            lines.append("    return data")
+
+    return "\n".join(lines)
+
+
+def _detect_path_renames(
+    delta: VersionDelta,
+) -> list[tuple[str, str, str]]:
+    """Detect path renames by matching operation_id across removed/added operations.
+
+    Returns list of (old_path, new_path, method) tuples for detected renames.
+    """
+    from crane.delta import OperationAdded, OperationRemoved
+
+    # Collect removed and added operations
+    removed: dict[tuple[str, str], str] = {}  # (operation_id, method) -> old_path
+    added: dict[tuple[str, str], str] = {}  # (operation_id, method) -> new_path
+
+    for action in delta.actions:
+        if isinstance(action, OperationRemoved):
+            op_id = action.old_operation.operation_id
+            removed[(op_id, action.method)] = action.path
+        elif isinstance(action, OperationAdded):
+            op_id = action.new_operation.operation_id
+            added[(op_id, action.method)] = action.path
+
+    # Find matches - same operation_id and method but different paths
+    renames: list[tuple[str, str, str]] = []
+    for key, old_path in removed.items():
+        if key in added:
+            new_path = added[key]
+            if old_path != new_path:
+                op_id, method = key
+                renames.append((old_path, new_path, method))
+
+    return renames
+
+
+def generate_data_migrations_code(
+    delta: VersionDelta,
+    from_version: str | None,
+    to_version: str,
+) -> str | None:
+    """Generate data migration skeleton code from a delta.
+
+    Returns None if no data migrations are needed (e.g., only operation additions).
+    """
+    from crane.delta import SchemaDefinitionAdded, SchemaDefinitionModified, SchemaDefinitionRemoved
+
+    downgrade_functions: list[str] = []
+    upgrade_functions: list[str] = []
+    schema_downgrades: list[str] = []
+    schema_upgrades: list[str] = []
+    path_rewrites: list[str] = []
+
+    # Detect path renames (same operation_id, different path)
+    renames = _detect_path_renames(delta)
+    for old_path, new_path, method in renames:
+        path_rewrites.append(
+            f'    PathRewrite(old_path="{old_path}", new_path="{new_path}", methods=["{method}"]),'
+        )
+
+    for action in delta.actions:
+        if isinstance(action, SchemaDefinitionModified):
+            schema_name = _schema_ref_to_name(action.schema_ref)
+            old_schema = action.old_schema if isinstance(action.old_schema, dict) else {}
+            new_schema = action.new_schema if isinstance(action.new_schema, dict) else {}
+
+            added_fields, removed_fields, has_breaking = _analyze_schema_change(
+                old_schema, new_schema
+            )
+
+            # Generate downgrade (new -> old)
+            downgrade_func = _generate_downgrade_function(
+                schema_name, added_fields, removed_fields, has_breaking, from_version, to_version
+            )
+            downgrade_functions.append(downgrade_func)
+            schema_downgrades.append(
+                f'    SchemaDowngrade("{action.schema_ref}", downgrade_{schema_name}),'
+            )
+
+            # Generate upgrade (old -> new)
+            upgrade_func = _generate_upgrade_function(
+                schema_name, added_fields, removed_fields, has_breaking, from_version, to_version
+            )
+            upgrade_functions.append(upgrade_func)
+            schema_upgrades.append(
+                f'    SchemaUpgrade("{action.schema_ref}", upgrade_{schema_name}),'
+            )
+
+        elif isinstance(action, SchemaDefinitionAdded):
+            # New schema - need downgrade to remove it from responses
+            schema_name = _schema_ref_to_name(action.schema_ref)
+
+            # Extract field names for removal
+            new_schema = action.new_schema if isinstance(action.new_schema, dict) else {}
+            props = new_schema.get("properties", {})
+            field_names = list(props.keys()) if isinstance(props, dict) else []
+
+            func_lines = [
+                f"def downgrade_{schema_name}(data: dict) -> dict:",
+                f'    """{to_version} -> {from_version or "initial"}: Remove new schema from responses."""',
+            ]
+            if field_names:
+                for field_name in field_names:
+                    func_lines.append(f'    data.pop("{field_name}", None)')
+                func_lines.append("    return data")
+            else:
+                func_lines.append("    return {}  # Schema didn't exist in previous version")
+
+            downgrade_functions.append("\n".join(func_lines))
+            schema_downgrades.append(
+                f'    SchemaDowngrade("{action.schema_ref}", downgrade_{schema_name}),'
+            )
+
+        elif isinstance(action, SchemaDefinitionRemoved):
+            # Removed schema - need upgrade to provide defaults
+            schema_name = _schema_ref_to_name(action.schema_ref)
+
+            # Extract field names for defaults
+            old_schema = action.old_schema if isinstance(action.old_schema, dict) else {}
+            props = old_schema.get("properties", {})
+            field_names = list(props.keys()) if isinstance(props, dict) else []
+
+            func_lines = [
+                f"def upgrade_{schema_name}(data: dict) -> dict:",
+                f'    """{from_version or "initial"} -> {to_version}: Provide defaults for removed schema."""',
+                '    raise NotImplementedError("Schema was removed - provide migration for incoming requests")',
+            ]
+            if field_names:
+                func_lines.append(f"    # Fields that existed: {', '.join(field_names)}")
+
+            upgrade_functions.append("\n".join(func_lines))
+            schema_upgrades.append(
+                f'    SchemaUpgrade("{action.schema_ref}", upgrade_{schema_name}),'
+            )
+
+    # If no data migrations needed, return None
+    if not downgrade_functions and not upgrade_functions and not path_rewrites:
+        return None
+
+    # Build the final code
+    parts = []
+
+    if downgrade_functions:
+        parts.append("# Downgrade transformers (new -> old)")
+        parts.extend(downgrade_functions)
+        parts.append("")
+
+    if upgrade_functions:
+        parts.append("# Upgrade transformers (old -> new)")
+        parts.extend(upgrade_functions)
+        parts.append("")
+
+    # Build DataMigrationSet
+    parts.append("data_migrations = DataMigrationSet(")
+    if schema_downgrades:
+        parts.append("    schema_downgrades=[")
+        parts.extend(schema_downgrades)
+        parts.append("    ],")
+    if schema_upgrades:
+        parts.append("    schema_upgrades=[")
+        parts.extend(schema_upgrades)
+        parts.append("    ],")
+    if path_rewrites:
+        parts.append("    path_rewrites=[")
+        parts.extend(path_rewrites)
+        parts.append("    ],")
+    parts.append(")")
+
+    return "\n".join(parts)
+
+
 def render_migration_file(
     dependencies: list[MigrationRef],
     from_version: str | None,
     to_version: str,
     description: str,
     delta: VersionDelta,
+    data_migrations_code: str | None = None,
 ) -> str:
     """Generate Python source code for migration file."""
     delta_json = delta.model_dump_json(indent=4)
@@ -270,13 +623,43 @@ def render_migration_file(
     from_desc = from_version or "empty"
     deps_repr = repr(dependencies)
 
+    # Build imports
+    imports = ["from crane.delta import VersionDelta"]
+    if data_migrations_code:
+        # Determine which data migration types are used
+        dm_imports = ["DataMigrationSet"]
+        if "SchemaDowngrade" in data_migrations_code:
+            dm_imports.append("SchemaDowngrade")
+        if "SchemaUpgrade" in data_migrations_code:
+            dm_imports.append("SchemaUpgrade")
+        if "PathRewrite" in data_migrations_code:
+            dm_imports.append("PathRewrite")
+
+        imports.append(
+            "from crane.data_migrations import (\n    " + ",\n    ".join(dm_imports) + ",\n)"
+        )
+
+    imports_str = "\n".join(imports)
+
+    # Build data migrations section
+    data_migrations_section = ""
+    if data_migrations_code:
+        data_migrations_section = f"""
+
+# === Data Migrations ===
+# Transformers for converting data between API versions.
+# Implement the NotImplementedError functions before deploying.
+
+{data_migrations_code}
+"""
+
     return f'''
 """
 API migration: {from_desc} -> {to_version}
 
 {description}
 """
-from crane.delta import VersionDelta
+{imports_str}
 
 dependencies: list[tuple[str, str]] = {deps_repr}
 from_version: str | None = {from_version!r}
@@ -285,7 +668,7 @@ to_version: str = {to_version!r}
 delta = VersionDelta.model_validate_json("""
 {delta_json}
 """)
-'''
+{data_migrations_section}'''
 
 
 def generate_migration(
@@ -330,7 +713,12 @@ def generate_migration(
     slug = _slugify(description)
     filename = f"m_{sequence:04d}_{slug}.py"
 
-    content = render_migration_file(dependencies, from_version, version_name, description, delta)
+    # Generate data migration skeletons
+    data_migrations_code = generate_data_migrations_code(delta, from_version, version_name)
+
+    content = render_migration_file(
+        dependencies, from_version, version_name, description, delta, data_migrations_code
+    )
 
     migrations_path = _module_to_path(migrations_module)
     _ensure_migrations_package(migrations_path)
