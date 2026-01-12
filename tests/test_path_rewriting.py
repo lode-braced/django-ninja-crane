@@ -4,7 +4,7 @@ from pathlib import Path
 
 from crane.api_version import PathOperation
 from crane.data_migrations import DataMigrationSet, PathRewrite
-from crane.delta import OperationAdded, OperationRemoved, VersionDelta
+from crane.delta import HttpMethod, OperationAdded, OperationRemoved, VersionDelta
 from crane.migrations_generator import LoadedMigration, _detect_path_renames
 from crane.path_rewriting import (
     build_path,
@@ -208,7 +208,7 @@ class TestGetPathRewritesForUpgrade:
 
 
 def make_operation(
-    method: str = "get",
+    method: HttpMethod = "get",
     path: str = "/test",
     operation_id: str = "test_op",
 ) -> PathOperation:

@@ -12,6 +12,7 @@ import importlib.util
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from ninja import NinjaAPI
 
@@ -293,10 +294,18 @@ def _analyze_schema_change(
         - removed_fields: list of field names that were removed
         - has_breaking_changes: True if there are type changes or other breaking modifications
     """
-    old_props = old_schema.get("properties", {})
-    new_props = new_schema.get("properties", {})
-    old_required = set(old_schema.get("required", []))
-    new_required = set(new_schema.get("required", []))
+    old_props_val = old_schema.get("properties", {})
+    new_props_val = new_schema.get("properties", {})
+    old_props = cast(dict[str, object], old_props_val if isinstance(old_props_val, dict) else {})
+    new_props = cast(dict[str, object], new_props_val if isinstance(new_props_val, dict) else {})
+    old_required_val = old_schema.get("required", [])
+    new_required_val = new_schema.get("required", [])
+    old_required = cast(
+        set[str], set(old_required_val) if isinstance(old_required_val, list) else set()
+    )
+    new_required = cast(
+        set[str], set(new_required_val) if isinstance(new_required_val, list) else set()
+    )
 
     added_fields: list[tuple[str, object]] = []
     removed_fields: list[str] = []
@@ -310,11 +319,11 @@ def _analyze_schema_change(
             has_breaking_changes = True
 
     # Analyze property changes
-    old_field_names = set(old_props.keys()) if isinstance(old_props, dict) else set()
-    new_field_names = set(new_props.keys()) if isinstance(new_props, dict) else set()
+    old_field_names = set(old_props.keys())
+    new_field_names = set(new_props.keys())
 
     for field_name in new_field_names - old_field_names:
-        field_schema = new_props[field_name] if isinstance(new_props, dict) else {}
+        field_schema = new_props.get(field_name, {})
         # Check if it's a new required field (breaking)
         if field_name in new_required:
             has_breaking_changes = True
@@ -325,9 +334,8 @@ def _analyze_schema_change(
 
     # Check for modified fields (type changes are breaking)
     for field_name in old_field_names & new_field_names:
-        if isinstance(old_props, dict) and isinstance(new_props, dict):
-            if old_props.get(field_name) != new_props.get(field_name):
-                has_breaking_changes = True
+        if old_props.get(field_name) != new_props.get(field_name):
+            has_breaking_changes = True
 
     # New required constraint on existing field is breaking
     newly_required = (new_required - old_required) & old_field_names
@@ -341,14 +349,18 @@ def _get_field_default(field_schema: object) -> str | None:
     """Extract default value from field schema, return Python repr or None."""
     if not isinstance(field_schema, dict):
         return None
-    default = field_schema.get("default")
+    schema = cast(dict[str, object], field_schema)
+    default = schema.get("default")
     if default is not None:
         return repr(default)
     # For optional fields (nullable), None is a safe default
-    if field_schema.get("anyOf"):
-        for option in field_schema["anyOf"]:
-            if isinstance(option, dict) and option.get("type") == "null":
-                return "None"
+    any_of = schema.get("anyOf")
+    if any_of and isinstance(any_of, list):
+        for option in any_of:
+            if isinstance(option, dict):
+                opt = cast(dict[str, object], option)
+                if opt.get("type") == "null":
+                    return "None"
     return None
 
 
@@ -501,8 +513,14 @@ def generate_data_migrations_code(
     for action in delta.actions:
         if isinstance(action, SchemaDefinitionModified):
             schema_name = _schema_ref_to_name(action.schema_ref)
-            old_schema = action.old_schema if isinstance(action.old_schema, dict) else {}
-            new_schema = action.new_schema if isinstance(action.new_schema, dict) else {}
+            old_schema = cast(
+                dict[str, object],
+                action.old_schema if isinstance(action.old_schema, dict) else {},
+            )
+            new_schema = cast(
+                dict[str, object],
+                action.new_schema if isinstance(action.new_schema, dict) else {},
+            )
 
             added_fields, removed_fields, has_breaking = _analyze_schema_change(
                 old_schema, new_schema

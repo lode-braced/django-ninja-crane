@@ -119,7 +119,7 @@ def _build_operation_map(
     result: dict[tuple[str, HttpMethod], PathOperation] = {}
     for path, operations in api_version.path_operations.items():
         for op in operations:
-            result[(path, cast(HttpMethod, op.method))] = op
+            result[(path, op.method)] = op
     return result
 
 
@@ -144,12 +144,16 @@ def _diff_openapi_json(
 
         if key == "parameters":
             # Diff individual parameters by name
-            old_params = {
-                _param_key(p): p for p in (old_val if old_val is not _MISSING else []) or []
-            }
-            new_params = {
-                _param_key(p): p for p in (new_val if new_val is not _MISSING else []) or []
-            }
+            old_list = cast(
+                list[AnyJson],
+                old_val if old_val is not _MISSING and isinstance(old_val, list) else [],
+            )
+            new_list = cast(
+                list[AnyJson],
+                new_val if new_val is not _MISSING and isinstance(new_val, list) else [],
+            )
+            old_params = {_param_key(p): p for p in old_list}
+            new_params = {_param_key(p): p for p in new_list}
             old_param_diff, new_param_diff = _diff_dict(old_params, new_params)
             if old_param_diff or new_param_diff:
                 old_diff["parameters"] = list(old_param_diff.values())
@@ -170,9 +174,9 @@ def _diff_openapi_json(
         else:
             # Other keys: include if different (including None values)
             if old_val is not _MISSING:
-                old_diff[key] = old_val
+                old_diff[key] = cast(AnyJson, old_val)
             if new_val is not _MISSING:
-                new_diff[key] = new_val
+                new_diff[key] = cast(AnyJson, new_val)
 
     return old_diff, new_diff
 
@@ -193,13 +197,13 @@ def _diff_dict(
 
     all_keys = set(old.keys()) | set(new.keys())
     for key in all_keys:
-        old_val = old.get(key, _MISSING)
-        new_val = new.get(key, _MISSING)
+        old_val: AnyJson | object = old.get(key, _MISSING)
+        new_val: AnyJson | object = new.get(key, _MISSING)
         if old_val != new_val:
             if old_val is not _MISSING:
-                old_diff[key] = old_val
+                old_diff[key] = cast(AnyJson, old_val)
             if new_val is not _MISSING:
-                new_diff[key] = new_val
+                new_diff[key] = cast(AnyJson, new_val)
 
     return old_diff, new_diff
 
@@ -211,10 +215,9 @@ def _diff_params(
     old_params: dict[ParamLocation, dict[str, FieldInfo]] = {}
     new_params: dict[ParamLocation, dict[str, FieldInfo]] = {}
 
-    for location in ("query", "path", "cookie"):
-        loc = cast(ParamLocation, location)
-        old_loc_params: dict[str, FieldInfo] = getattr(old_op, f"{location}_params")
-        new_loc_params: dict[str, FieldInfo] = getattr(new_op, f"{location}_params")
+    for loc in ("query", "path", "cookie"):
+        old_loc_params: dict[str, FieldInfo] = getattr(old_op, f"{loc}_params")
+        new_loc_params: dict[str, FieldInfo] = getattr(new_op, f"{loc}_params")
 
         old_loc_diff: dict[str, FieldInfo] = {}
         new_loc_diff: dict[str, FieldInfo] = {}
@@ -314,9 +317,9 @@ def _diff_schema(
         else:
             # Other keys: include if different (including None values)
             if old_val is not _MISSING:
-                old_diff[key] = old_val
+                old_diff[key] = cast(AnyJson, old_val)
             if new_val is not _MISSING:
-                new_diff[key] = new_val
+                new_diff[key] = cast(AnyJson, new_val)
 
     return old_diff, new_diff
 
@@ -335,35 +338,33 @@ def create_delta(old: ApiVersion, new: ApiVersion) -> VersionDelta:
     old_ops = _build_operation_map(old)
     new_ops = _build_operation_map(new)
 
-    old_keys = set(old_ops.keys())
-    new_keys = set(new_ops.keys())
+    type OpKey = tuple[str, HttpMethod]
+    old_keys: set[OpKey] = set(old_ops.keys())
+    new_keys: set[OpKey] = set(new_ops.keys())
 
     # Operations added in new
     for key in new_keys - old_keys:
-        path, method = key
         actions.append(
             OperationAdded(
-                path=path,
-                method=method,
+                path=key[0],
+                method=key[1],
                 new_operation=new_ops[key],
             )
         )
 
     # Operations removed in new
     for key in old_keys - new_keys:
-        path, method = key
         actions.append(
             OperationRemoved(
-                path=path,
-                method=method,
+                path=key[0],
+                method=key[1],
                 old_operation=old_ops[key],
             )
         )
 
     # Operations that exist in both - compare their contents
     for key in old_keys & new_keys:
-        path, method = key
-        modified = _compare_operations(old_ops[key], new_ops[key], path, method)
+        modified = _compare_operations(old_ops[key], new_ops[key], key[0], key[1])
         if modified:
             actions.append(modified)
 
@@ -502,11 +503,11 @@ def _apply_openapi_json_diff(
     result = dict(target)
 
     # Handle parameters separately (list of param objects keyed by name+location)
-    old_params = old_diff.get("parameters", [])
-    new_params = new_diff.get("parameters", [])
+    old_params = cast(list[AnyJson], old_diff.get("parameters", []))
+    new_params = cast(list[AnyJson], new_diff.get("parameters", []))
 
     if old_params or new_params:
-        current_params = list(result.get("parameters", []))
+        current_params = cast(list[AnyJson], result.get("parameters", []))
         current_by_key = {_param_key(p): p for p in current_params}
 
         old_by_key = {_param_key(p): p for p in old_params}
@@ -552,15 +553,14 @@ def _apply_params_diff(
     """Apply param diffs to an operation, returning a new PathOperation."""
     updates: dict[str, dict[str, FieldInfo]] = {}
 
-    for location in ("query", "path", "cookie"):
-        loc = cast(ParamLocation, location)
+    for loc in ("query", "path", "cookie"):
         old_loc = old_params.get(loc, {})
         new_loc = new_params.get(loc, {})
 
         if not old_loc and not new_loc:
             continue
 
-        current = dict(getattr(target_op, f"{location}_params"))
+        current = dict(getattr(target_op, f"{loc}_params"))
 
         if forwards:
             add_from, remove_from = new_loc, old_loc
@@ -580,7 +580,7 @@ def _apply_params_diff(
             elif name in remove_from:
                 current.pop(name, None)
 
-        updates[f"{location}_params"] = current
+        updates[f"{loc}_params"] = current
 
     if updates:
         return target_op.model_copy(update=updates)

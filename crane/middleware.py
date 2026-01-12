@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from typing import Awaitable
 
 from asgiref.sync import async_to_sync, iscoroutinefunction, markcoroutinefunction
 from django.conf import settings
@@ -99,7 +100,7 @@ class VersionedAPIMiddleware:
 
         # Mark ourselves as a coroutine if get_response is async
         if iscoroutinefunction(self.get_response):
-            markcoroutinefunction(self)
+            markcoroutinefunction(self)  # type: ignore
 
     @property
     def migrations(self) -> list[LoadedMigration]:
@@ -157,7 +158,7 @@ class VersionedAPIMiddleware:
         operations that were modified, deleted, or recreated across versions.
         """
         path = request.path
-        method = request.method.lower()
+        method = (request.method or "GET").lower()
 
         # Get the API state at the specified version
         api_state = self._get_api_state(version)
@@ -201,7 +202,7 @@ class VersionedAPIMiddleware:
             api_path = request.path
 
         # Apply rewrites
-        method = request.method.lower()
+        method = (request.method or "GET").lower()
         new_api_path = rewrite_path(api_path, method, rewrites)  # type: ignore[arg-type]
 
         if new_api_path != api_path:
@@ -215,7 +216,7 @@ class VersionedAPIMiddleware:
             request.path = new_path
             request.path_info = new_path
 
-    def __call__(self, request: HttpRequest) -> HttpResponse:
+    def __call__(self, request: HttpRequest) -> HttpResponse | Awaitable[HttpResponse]:
         """Middleware entry point - dispatches to sync or async implementation."""
         if iscoroutinefunction(self):
             return self._async_call(request)

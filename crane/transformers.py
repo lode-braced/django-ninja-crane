@@ -49,8 +49,9 @@ def _extract_refs_from_schema(schema: AnyJson) -> list[str]:
     refs: list[str] = []
 
     # Direct $ref
-    if "$ref" in schema:
-        refs.append(schema["$ref"])
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        refs.append(ref)
 
     # Array items
     if "items" in schema:
@@ -58,8 +59,9 @@ def _extract_refs_from_schema(schema: AnyJson) -> list[str]:
 
     # anyOf / oneOf / allOf
     for key in ("anyOf", "oneOf", "allOf"):
-        if key in schema and isinstance(schema[key], list):
-            for variant in schema[key]:
+        variants = schema.get(key)
+        if isinstance(variants, list):
+            for variant in variants:
                 refs.extend(_extract_refs_from_schema(variant))
 
     # additionalProperties

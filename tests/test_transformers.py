@@ -4,7 +4,7 @@ from pathlib import Path
 
 from crane.api_version import PathOperation
 from crane.data_migrations import DataMigrationSet, OperationUpgrade, SchemaDowngrade, SchemaUpgrade
-from crane.delta import SchemaDefinitionAdded, VersionDelta
+from crane.delta import HttpMethod, SchemaDefinitionAdded, VersionDelta
 from crane.migrations_generator import LoadedMigration
 from crane.transformers import (
     _get_migrations_between,
@@ -36,7 +36,7 @@ def make_migration(
 
 
 def make_operation(
-    method: str = "get",
+    method: HttpMethod = "get",
     path: str = "/test",
     response_bodies: list[str] | None = None,
     request_body_schema: list[str] | None = None,

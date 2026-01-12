@@ -1,5 +1,8 @@
 from collections import defaultdict
-from typing import Any, Generator, Literal, Tuple, Type, cast
+from typing import TYPE_CHECKING, Any, Generator, Literal, Tuple, Type, cast
+
+if TYPE_CHECKING:
+    from crane.delta import HttpMethod
 
 from ninja import NinjaAPI
 from ninja.constants import NOT_SET
@@ -60,9 +63,19 @@ def _schema_to_refs(schema: dict[str, AnyJson]) -> AnyAllOf:
     if isinstance(ref := schema.get("$ref", None), str):
         return [ref]
     elif isinstance(any_of := schema.get("anyOf"), list):
-        return [r for ref_list in any_of for r in _schema_to_refs(ref_list)]
+        return [
+            r
+            for ref_list in any_of
+            if isinstance(ref_list, dict)
+            for r in _schema_to_refs(ref_list)
+        ]
     elif isinstance(one_of := schema.get("oneOf"), list):
-        return [r for ref_list in one_of for r in _schema_to_refs(ref_list)]
+        return [
+            r
+            for ref_list in one_of
+            if isinstance(ref_list, dict)
+            for r in _schema_to_refs(ref_list)
+        ]
     elif schema.get("type") == "array":
         return _schema_to_refs(cast(AnyJsonDict, schema["items"]))
     elif (
@@ -122,8 +135,9 @@ def _extract_operation_responses(
 
 
 def get_openapi_operation_id(operation: "Operation") -> str:
-    name = operation.view_func.__name__
-    module = operation.view_func.__module__
+    view_func = operation.view_func
+    name = getattr(view_func, "__name__", "unknown")
+    module = getattr(view_func, "__module__", "unknown")
     return (module + "_" + name).replace(".", "_")
 
 
@@ -367,7 +381,7 @@ def create_api_version(api: NinjaAPI) -> ApiVersion:
                 for method in operation.methods:
                     path_operations[router_prefix + path_str].append(
                         PathOperation(
-                            method=method.lower(),
+                            method=cast("HttpMethod", method.lower()),
                             query_params=query_params,  # type: ignore
                             path_params=path_params,  # type: ignore
                             cookie_params=cookie_params,  # type: ignore
