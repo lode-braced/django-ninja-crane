@@ -11,6 +11,8 @@ django-ninja-crane enables you to:
 - Automatically transform requests/responses between API versions
 - Serve older API versions to clients while running only your latest code
 
+For more information, check the [documentation](https://lode-braced.github.io/django-ninja-crane/)
+
 ## Installation
 
 ```bash
