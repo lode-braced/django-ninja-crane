@@ -52,4 +52,6 @@ jobs:
           chmod +x /usr/local/bin/plantuml
       - name: Deploy documentation
         run: |
+          git config --global user.name "Github Actions"
+          git config --global user.email "noreply@github.com"
           uv run --group docs mike deploy $(git describe --tags | sed 's/^v//') latest
