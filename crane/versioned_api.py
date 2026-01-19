@@ -103,12 +103,14 @@ class VersionedNinjaAPI(NinjaAPI):
     """NinjaAPI subclass with built-in API versioning and migration support.
 
     Example usage:
+        ```python
         api = VersionedNinjaAPI(api_label="default")
         api.add_router("/persons", persons_router)
 
         urlpatterns = [
             path("api/", api.urls),
         ]
+        ```
     """
 
     _versioned_registry: dict[str, "VersionedNinjaAPI"] = {}

@@ -1,0 +1,28 @@
+<style>
+root {
+'FontColor cornflowerblue
+'backgroundColor transparent
+'linecolor deepskyblue
+}
+
+
+component {
+BackgroundColor %lighten("#26a699", 80);
+}
+package {
+lineColor %lighten("#26a699", 50);
+}
+arrow {
+lineColor teal;
+}
+participant {
+BackgroundColor %lighten("#26a699", 80);
+}
+sequenceDiagram {
+group {
+}
+}
+
+
+
+</style>

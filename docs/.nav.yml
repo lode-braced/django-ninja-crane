@@ -1,0 +1,9 @@
+nav:
+  - Get Started:
+      - Welcome to Ninja-Crane: index.md
+      - Quickstart: get-started/quickstart.md
+      - Configuration: get-started/configuration.md
+  - Core Concepts: concepts
+  - Examples: examples
+  - Advanced usages: advanced
+  - "*"

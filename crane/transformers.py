@@ -18,6 +18,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any, cast
+from asgiref.sync import sync_to_async
 
 from crane.api_version import AnyJson, PathOperation
 from crane.data_migrations import DataMigrationSet
@@ -36,9 +37,7 @@ async def _call_transformer(
     if asyncio.iscoroutinefunction(transformer):
         return await transformer(*args)
     else:
-        # Sync transformers can be called directly - no need for sync_to_async
-        # since they're simple data transformations (no I/O)
-        return transformer(*args)
+        return sync_to_async(transformer)(*args)
 
 
 def _extract_refs_from_schema(schema: AnyJson) -> list[str]:
