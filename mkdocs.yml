@@ -1,6 +1,6 @@
 site_name: django-ninja-crane
 site_description: Stripe-style API versioning for Django Ninja
-repo_url: https://github.com/loder/django-ninja-crane
+repo_url: https://github.com/lode-braced/django-ninja-crane
 
 theme:
   name: material
