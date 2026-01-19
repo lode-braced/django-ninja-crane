@@ -1,5 +1,5 @@
 
-  <img src="docs/crane.png" alt="django-ninja-crane" width="200">
+  <img src="https://github.com/lode-braced/django-ninja-crane/raw/main/docs/crane.png" alt="django-ninja-crane" width="200">
 
 # django-ninja-crane
 
