@@ -1,0 +1,1295 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Stripe-style API versioning for Django Ninja">
+      
+      
+      
+      
+        <link rel="prev" href="../../get-started/configuration/">
+      
+      
+        <link rel="next" href="../migration-files/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>How It Works - django-ninja-crane</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#how-it-works" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="django-ninja-crane" class="md-header__button md-logo" aria-label="django-ninja-crane" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            django-ninja-crane
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              How It Works
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to System preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to System preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/lode-braced/django-ninja-crane" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/modifying-schema/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../advanced/custom-version-resolver/" class="md-tabs__link">
+          
+  
+  
+  Advanced usages
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="django-ninja-crane" class="md-nav__button md-logo" aria-label="django-ninja-crane" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    django-ninja-crane
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/lode-braced/django-ninja-crane" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome to Ninja-Crane
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How It Works
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How It Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step by Step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-reconstruction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Reconstruction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transformation-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transformation Engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transformation Engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-transformers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema Transformers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transformation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transformation Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#middleware-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Middleware Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Middleware Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-request-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-Request State
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#openapi-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAPI Generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration-files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/modifying-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Transformation Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/path-rewrites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Path Rewrites
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced usages
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Advanced usages
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/custom-version-resolver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Version Resolver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/operation-transformers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operation Transformers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step by Step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-reconstruction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Reconstruction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transformation-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transformation Engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transformation Engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-transformers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema Transformers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transformation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transformation Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#middleware-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Middleware Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Middleware Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-request-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-Request State
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#openapi-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAPI Generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="how-it-works">How It Works</h1>
+<p>django-ninja-crane enables API versioning through three mechanisms:</p>
+<ol>
+<li><strong>Migration files</strong> store schema deltas between versions</li>
+<li><strong>State reconstruction</strong> rebuilds the API schema at any historical version</li>
+<li><strong>Runtime transformation</strong> converts data between versions on every request</li>
+</ol>
+<p>At <strong>Development time</strong>, you use <code>python manage.py makeapimigrations</code> to detect differences between the stored
+schema deltas and your code. Then, you fill in the generated <a href="../migration-files/">migration file</a>'s
+transformers (if any), to tell the versioning middleware how to "upgrade" from this version to the latest version.</p>
+<p>Then, at <strong>Runtime</strong>, the migration files you made are used when a request for an older version is encountered:</p>
+<p><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiBjb250ZW50U3R5bGVUeXBlPSJ0ZXh0L2NzcyIgZGF0YS1kaWFncmFtLXR5cGU9IlNFUVVFTkNFIiBoZWlnaHQ9IjQ1N3B4IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBzdHlsZT0id2lkdGg6NDg1cHg7aGVpZ2h0OjQ1N3B4O2JhY2tncm91bmQ6I0ZGRkZGRjsiIHZlcnNpb249IjEuMSIgdmlld0JveD0iMCAwIDQ4NSA0NTciIHdpZHRoPSI0ODVweCIgem9vbUFuZFBhbj0ibWFnbmlmeSI+PGRlZnMvPjxnPjxyZWN0IGZpbGw9Im5vbmUiIGhlaWdodD0iNzQuMzk4NCIgc3R5bGU9InN0cm9rZTojMDAwMDAwO3N0cm9rZS13aWR0aDoxLjU7IiB3aWR0aD0iMzM5LjQ2MTkiIHg9IjEzOS45Mzc1IiB5PSIxMzkuNjk1MyIvPjxyZWN0IGZpbGw9Im5vbmUiIGhlaWdodD0iNzQuMzk4NCIgc3R5bGU9InN0cm9rZTojMDAwMDAwO3N0cm9rZS13aWR0aDoxLjU7IiB3aWR0aD0iMzM5LjQ2MTkiIHg9IjEzOS45Mzc1IiB5PSIzMDEuNDkyMiIvPjxnPjx0aXRsZT5DbGllbnQ8L3RpdGxlPjxyZWN0IGZpbGw9IiMwMDAwMDAiIGZpbGwtb3BhY2l0eT0iMC4wMDAwMCIgaGVpZ2h0PSIzODUuNzI2NiIgd2lkdGg9IjgiIHg9IjI4LjI2NTEiIHk9IjM2LjI5NjkiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTtzdHJva2UtZGFzaGFycmF5OjUuMCw1LjA7IiB4MT0iMzIiIHgyPSIzMiIgeTE9IjM2LjI5NjkiIHkyPSI0MjIuMDIzNCIvPjwvZz48Zz48dGl0bGU+TWlkZGxld2FyZTwvdGl0bGU+PHJlY3QgZmlsbD0iIzAwMDAwMCIgZmlsbC1vcGFjaXR5PSIwLjAwMDAwIiBoZWlnaHQ9IjM4NS43MjY2IiB3aWR0aD0iOCIgeD0iMTkzLjI1OTMiIHk9IjM2LjI5NjkiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTtzdHJva2UtZGFzaGFycmF5OjUuMCw1LjA7IiB4MT0iMTk2LjkzNzUiIHgyPSIxOTYuOTM3NSIgeTE9IjM2LjI5NjkiIHkyPSI0MjIuMDIzNCIvPjwvZz48Zz48dGl0bGU+WW91ciBFbmRwb2ludDwvdGl0bGU+PHJlY3QgZmlsbD0iIzAwMDAwMCIgZmlsbC1vcGFjaXR5PSIwLjAwMDAwIiBoZWlnaHQ9IjM4NS43MjY2IiB3aWR0aD0iOCIgeD0iNDA5LjE5MDkiIHk9IjM2LjI5NjkiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTtzdHJva2UtZGFzaGFycmF5OjUuMCw1LjA7IiB4MT0iNDEyLjkzOCIgeDI9IjQxMi45MzgiIHkxPSIzNi4yOTY5IiB5Mj0iNDIyLjAyMzQiLz48L2c+PGcgY2xhc3M9InBhcnRpY2lwYW50IHBhcnRpY2lwYW50LWhlYWQiIGRhdGEtcGFydGljaXBhbnQ9IkNsaWVudCI+PHJlY3QgZmlsbD0iIzhCRTREQiIgaGVpZ2h0PSIzMC4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI1NC41MzAzIiB4PSI1IiB5PSI1Ii8+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iNDAuNTMwMyIgeD0iMTIiIHk9IjI0Ljk5NTEiPkNsaWVudDwvdGV4dD48L2c+PGcgY2xhc3M9InBhcnRpY2lwYW50IHBhcnRpY2lwYW50LXRhaWwiIGRhdGEtcGFydGljaXBhbnQ9IkNsaWVudCI+PHJlY3QgZmlsbD0iIzhCRTREQiIgaGVpZ2h0PSIzMC4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI1NC41MzAzIiB4PSI1IiB5PSI0MjEuMDIzNCIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjQwLjUzMDMiIHg9IjEyIiB5PSI0NDEuMDE4NiI+Q2xpZW50PC90ZXh0PjwvZz48ZyBjbGFzcz0icGFydGljaXBhbnQgcGFydGljaXBhbnQtaGVhZCIgZGF0YS1wYXJ0aWNpcGFudD0iTWlkZGxld2FyZSI+PHJlY3QgZmlsbD0iIzhCRTREQiIgaGVpZ2h0PSIzMC4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI5NC42NDM2IiB4PSIxNDkuOTM3NSIgeT0iNSIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjgwLjY0MzYiIHg9IjE1Ni45Mzc1IiB5PSIyNC45OTUxIj5NaWRkbGV3YXJlPC90ZXh0PjwvZz48ZyBjbGFzcz0icGFydGljaXBhbnQgcGFydGljaXBhbnQtdGFpbCIgZGF0YS1wYXJ0aWNpcGFudD0iTWlkZGxld2FyZSI+PHJlY3QgZmlsbD0iIzhCRTREQiIgaGVpZ2h0PSIzMC4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI5NC42NDM2IiB4PSIxNDkuOTM3NSIgeT0iNDIxLjAyMzQiLz48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI4MC42NDM2IiB4PSIxNTYuOTM3NSIgeT0iNDQxLjAxODYiPk1pZGRsZXdhcmU8L3RleHQ+PC9nPjxnIGNsYXNzPSJwYXJ0aWNpcGFudCBwYXJ0aWNpcGFudC1oZWFkIiBkYXRhLXBhcnRpY2lwYW50PSJFbmRwb2ludCI+PHJlY3QgZmlsbD0iIzhCRTREQiIgaGVpZ2h0PSIzMC4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSIxMTIuNTA1OSIgeD0iMzU2LjkzOCIgeT0iNSIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9Ijk4LjUwNTkiIHg9IjM2My45MzgiIHk9IjI0Ljk5NTEiPllvdXIgRW5kcG9pbnQ8L3RleHQ+PC9nPjxnIGNsYXNzPSJwYXJ0aWNpcGFudCBwYXJ0aWNpcGFudC10YWlsIiBkYXRhLXBhcnRpY2lwYW50PSJFbmRwb2ludCI+PHJlY3QgZmlsbD0iIzhCRTREQiIgaGVpZ2h0PSIzMC4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSIxMTIuNTA1OSIgeD0iMzU2LjkzOCIgeT0iNDIxLjAyMzQiLz48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI5OC41MDU5IiB4PSIzNjMuOTM4IiB5PSI0NDEuMDE4NiI+WW91ciBFbmRwb2ludDwvdGV4dD48L2c+PGcgY2xhc3M9Im1lc3NhZ2UiIGRhdGEtcGFydGljaXBhbnQtMT0iQ2xpZW50IiBkYXRhLXBhcnRpY2lwYW50LTI9Ik1pZGRsZXdhcmUiPjxwb2x5Z29uIGZpbGw9IiMwMDgwODAiIHBvaW50cz0iMTg1LjI1OTMsNzguNTYyNSwxOTUuMjU5Myw4Mi41NjI1LDE4NS4yNTkzLDg2LjU2MjUsMTg5LjI1OTMsODIuNTYyNSIgc3R5bGU9InN0cm9rZTojMDA4MDgwO3N0cm9rZS13aWR0aDoxOyIvPjxsaW5lIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiIHgxPSIzMi4yNjUxIiB4Mj0iMTkxLjI1OTMiIHkxPSI4Mi41NjI1IiB5Mj0iODIuNTYyNSIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9Ijk4LjcyNTEiIHg9IjM5LjI2NTEiIHk9IjYyLjM2MzgiPkdFVCAvcGVyc29ucy8xPC90ZXh0Pjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjEwNC40NTA3IiB4PSIzOS4yNjUxIiB5PSI3Ny40OTY2Ij5YLUFQSS1WZXJzaW9uOiAxPC90ZXh0PjwvZz48ZyBjbGFzcz0ibWVzc2FnZSIgZGF0YS1wYXJ0aWNpcGFudC0xPSJNaWRkbGV3YXJlIiBkYXRhLXBhcnRpY2lwYW50LTI9Ik1pZGRsZXdhcmUiPjxsaW5lIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiIHgxPSIxOTcuMjU5MyIgeDI9IjIzOS4yNTkzIiB5MT0iMTExLjY5NTMiIHkyPSIxMTEuNjk1MyIvPjxsaW5lIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiIHgxPSIyMzkuMjU5MyIgeDI9IjIzOS4yNTkzIiB5MT0iMTExLjY5NTMiIHkyPSIxMjQuNjk1MyIvPjxsaW5lIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiIHgxPSIxOTguMjU5MyIgeDI9IjIzOS4yNTkzIiB5MT0iMTI0LjY5NTMiIHkyPSIxMjQuNjk1MyIvPjxwb2x5Z29uIGZpbGw9IiMwMDgwODAiIHBvaW50cz0iMjA4LjI1OTMsMTIwLjY5NTMsMTk4LjI1OTMsMTI0LjY5NTMsMjA4LjI1OTMsMTI4LjY5NTMsMjA0LjI1OTMsMTI0LjY5NTMiIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiLz48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSIxMjguNTQ2NCIgeD0iMjA0LjI1OTMiIHk9IjEwNi42Mjk0Ij5FeHRyYWN0IHZlcnNpb24gKHYxKTwvdGV4dD48L2c+PHBhdGggZD0iTTEzOS45Mzc1LDEzOS42OTUzIEwyMTYuNTYxNSwxMzkuNjk1MyBMMjE2LjU2MTUsMTQ2LjgyODEgTDIwNi41NjE1LDE1Ni44MjgxIEwxMzkuOTM3NSwxNTYuODI4MSBMMTM5LjkzNzUsMTM5LjY5NTMiIGZpbGw9IiNFRUVFRUUiIHN0eWxlPSJzdHJva2U6IzAwMDAwMDtzdHJva2Utd2lkdGg6MS41OyIvPjxyZWN0IGZpbGw9Im5vbmUiIGhlaWdodD0iNzQuMzk4NCIgc3R5bGU9InN0cm9rZTojMDAwMDAwO3N0cm9rZS13aWR0aDoxLjU7IiB3aWR0aD0iMzM5LjQ2MTkiIHg9IjEzOS45Mzc1IiB5PSIxMzkuNjk1MyIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iYm9sZCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSIzMS42MjQiIHg9IjE1NC45Mzc1IiB5PSIxNTIuNzYyMiI+bG9vcDwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMSIgZm9udC13ZWlnaHQ9ImJvbGQiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iMjQyLjgzNzkiIHg9IjIzMS41NjE1IiB5PSIxNTEuOTA1OCI+W2ZvciBlYWNoIHZlcnNpb24gdjEgJiM4NTk0OyB2MiAmIzg1OTQ7IC4uLiAmIzg1OTQ7IGxhdGVzdF08L3RleHQ+PGcgY2xhc3M9Im1lc3NhZ2UiIGRhdGEtcGFydGljaXBhbnQtMT0iTWlkZGxld2FyZSIgZGF0YS1wYXJ0aWNpcGFudC0yPSJNaWRkbGV3YXJlIj48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMTk3LjI1OTMiIHgyPSIyMzkuMjU5MyIgeTE9IjE5My4wOTM4IiB5Mj0iMTkzLjA5MzgiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMjM5LjI1OTMiIHgyPSIyMzkuMjU5MyIgeTE9IjE5My4wOTM4IiB5Mj0iMjA2LjA5MzgiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMTk4LjI1OTMiIHgyPSIyMzkuMjU5MyIgeTE9IjIwNi4wOTM4IiB5Mj0iMjA2LjA5MzgiLz48cG9seWdvbiBmaWxsPSIjMDA4MDgwIiBwb2ludHM9IjIwOC4yNTkzLDIwMi4wOTM4LDE5OC4yNTkzLDIwNi4wOTM4LDIwOC4yNTkzLDIxMC4wOTM4LDIwNC4yNTkzLDIwNi4wOTM4IiBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7Ii8+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iMTgzLjM0NTciIHg9IjIwNC4yNTkzIiB5PSIxNzIuODk1Ij5BcHBseSB1cGdyYWRlIHRyYW5zZm9ybWVyczwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSIxOTAuODgwNCIgeD0iMjA0LjI1OTMiIHk9IjE4OC4wMjc4Ij4ocGF0aCByZXdyaXRlcywgcmVxdWVzdCBib2R5KTwvdGV4dD48L2c+PGcgY2xhc3M9Im1lc3NhZ2UiIGRhdGEtcGFydGljaXBhbnQtMT0iTWlkZGxld2FyZSIgZGF0YS1wYXJ0aWNpcGFudC0yPSJFbmRwb2ludCI+PHBvbHlnb24gZmlsbD0iIzAwODA4MCIgcG9pbnRzPSI0MDEuMTkwOSwyNTMuMzU5NCw0MTEuMTkwOSwyNTcuMzU5NCw0MDEuMTkwOSwyNjEuMzU5NCw0MDUuMTkwOSwyNTcuMzU5NCIgc3R5bGU9InN0cm9rZTojMDA4MDgwO3N0cm9rZS13aWR0aDoxOyIvPjxsaW5lIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiIHgxPSIxOTcuMjU5MyIgeDI9IjQwNy4xOTA5IiB5MT0iMjU3LjM1OTQiIHkyPSIyNTcuMzU5NCIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9Ijg2LjA0MjUiIHg9IjIwNC4yNTkzIiB5PSIyMzcuMTYwNiI+Q2FsbCBlbmRwb2ludDwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI5NC40MjE0IiB4PSIyMDQuMjU5MyIgeT0iMjUyLjI5MzUiPihsYXRlc3QgZm9ybWF0KTwvdGV4dD48L2c+PGcgY2xhc3M9Im1lc3NhZ2UiIGRhdGEtcGFydGljaXBhbnQtMT0iRW5kcG9pbnQiIGRhdGEtcGFydGljaXBhbnQtMj0iTWlkZGxld2FyZSI+PHBvbHlnb24gZmlsbD0iIzAwODA4MCIgcG9pbnRzPSIyMDguMjU5MywyODIuNDkyMiwxOTguMjU5MywyODYuNDkyMiwyMDguMjU5MywyOTAuNDkyMiwyMDQuMjU5MywyODYuNDkyMiIgc3R5bGU9InN0cm9rZTojMDA4MDgwO3N0cm9rZS13aWR0aDoxOyIvPjxsaW5lIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiIHgxPSIyMDIuMjU5MyIgeDI9IjQxMi4xOTA5IiB5MT0iMjg2LjQ5MjIiIHkyPSIyODYuNDkyMiIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjE2MS41NzMyIiB4PSIyMTQuMjU5MyIgeT0iMjgxLjQyNjMiPlJlc3BvbnNlIChsYXRlc3QgZm9ybWF0KTwvdGV4dD48L2c+PHBhdGggZD0iTTEzOS45Mzc1LDMwMS40OTIyIEwyMTYuNTYxNSwzMDEuNDkyMiBMMjE2LjU2MTUsMzA4LjYyNSBMMjA2LjU2MTUsMzE4LjYyNSBMMTM5LjkzNzUsMzE4LjYyNSBMMTM5LjkzNzUsMzAxLjQ5MjIiIGZpbGw9IiNFRUVFRUUiIHN0eWxlPSJzdHJva2U6IzAwMDAwMDtzdHJva2Utd2lkdGg6MS41OyIvPjxyZWN0IGZpbGw9Im5vbmUiIGhlaWdodD0iNzQuMzk4NCIgc3R5bGU9InN0cm9rZTojMDAwMDAwO3N0cm9rZS13aWR0aDoxLjU7IiB3aWR0aD0iMzM5LjQ2MTkiIHg9IjEzOS45Mzc1IiB5PSIzMDEuNDkyMiIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iYm9sZCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSIzMS42MjQiIHg9IjE1NC45Mzc1IiB5PSIzMTQuNTU5MSI+bG9vcDwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMSIgZm9udC13ZWlnaHQ9ImJvbGQiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iMjQyLjgzNzkiIHg9IjIzMS41NjE1IiB5PSIzMTMuNzAyNiI+W2ZvciBlYWNoIHZlcnNpb24gbGF0ZXN0ICYjODU5NDsgLi4uICYjODU5NDsgdjIgJiM4NTk0OyB2MV08L3RleHQ+PGcgY2xhc3M9Im1lc3NhZ2UiIGRhdGEtcGFydGljaXBhbnQtMT0iTWlkZGxld2FyZSIgZGF0YS1wYXJ0aWNpcGFudC0yPSJNaWRkbGV3YXJlIj48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMTk3LjI1OTMiIHgyPSIyMzkuMjU5MyIgeTE9IjM1NC44OTA2IiB5Mj0iMzU0Ljg5MDYiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMjM5LjI1OTMiIHgyPSIyMzkuMjU5MyIgeTE9IjM1NC44OTA2IiB5Mj0iMzY3Ljg5MDYiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMTk4LjI1OTMiIHgyPSIyMzkuMjU5MyIgeTE9IjM2Ny44OTA2IiB5Mj0iMzY3Ljg5MDYiLz48cG9seWdvbiBmaWxsPSIjMDA4MDgwIiBwb2ludHM9IjIwOC4yNTkzLDM2My44OTA2LDE5OC4yNTkzLDM2Ny44OTA2LDIwOC4yNTkzLDM3MS44OTA2LDIwNC4yNTkzLDM2Ny44OTA2IiBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7Ii8+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iMjAxLjkzMTYiIHg9IjIwNC4yNTkzIiB5PSIzMzQuNjkxOSI+QXBwbHkgZG93bmdyYWRlIHRyYW5zZm9ybWVyczwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSIxMDUuNzU4MyIgeD0iMjA0LjI1OTMiIHk9IjM0OS44MjQ3Ij4ocmVzcG9uc2UgYm9keSk8L3RleHQ+PC9nPjxnIGNsYXNzPSJtZXNzYWdlIiBkYXRhLXBhcnRpY2lwYW50LTE9Ik1pZGRsZXdhcmUiIGRhdGEtcGFydGljaXBhbnQtMj0iQ2xpZW50Ij48cG9seWdvbiBmaWxsPSIjMDA4MDgwIiBwb2ludHM9IjQzLjI2NTEsNDAwLjAyMzQsMzMuMjY1MSw0MDQuMDIzNCw0My4yNjUxLDQwOC4wMjM0LDM5LjI2NTEsNDA0LjAyMzQiIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiLz48bGluZSBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7IiB4MT0iMzcuMjY1MSIgeDI9IjE5Ni4yNTkzIiB5MT0iNDA0LjAyMzQiIHkyPSI0MDQuMDIzNCIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjE0MC45OTQxIiB4PSI0OS4yNjUxIiB5PSIzOTguOTU3NSI+UmVzcG9uc2UgKHYxIGZvcm1hdCk8L3RleHQ+PC9nPjwhLS1TUkM9W2JMQlJJaUQwNDd0VmhuV2dHV0V6YzhCNXJiQWVqT1dGV2VZOEdiX01QNG1ORHhsaHhaUW5ZQXotVzlfZWJwWGpzamVLMHZnTnBLcEVFTkZFUjBSRUJvR0VjVE5RbW5qeFB1bjVFWkxRZUxoTVBwbndKZ29VZ3RZaWZSUG1BNEtveXdaZ2pPREVidFR4bExlM0pldzJLbzhRV2w4NFlJSTVtY2h1U0c3ZHJrZ3kxRlI4UEk1YWxPWTR1VnpydUYxYlpZaDJTeTRKb3JDWUJ1YmM1TWlQWjB0UXd4SWI2TUNmQTZvZlRJTllNNkJFQlBSUWpHU3pqcDFIaVQ1Mi1IZm1qb3FPQXNJV0VUblh6LTVZU1dqald6UGZ2VGhYTERxdEh6VU5wSmpnMkF0dzQzQnNXenhkSmJ3enZQNjdoNDEzRkdpM25nSk0xZnZlNHlZWnNWUFI1aUJObm9UYWRUTkhRaExNZi1HVWRNVDBKX01PYUo1bzBORDNFdWlIUUFIbzk5LUl5NUpMM1ZTcGk5WFJHS2VEVWdDTEVtLUZFYnU0MzVNeXh0LXBacHdDa1BJMHd2QUsyWXpCdm9kdDBUaTB6enRTZUFFX3BvN2k0b2cyaHI2eGdUVEJvQzhfMU96cmhkd0RSWlRFQWlDTUx4eGhjUXZYdV9TUl0tLT48L2c+PC9zdmc+" class="uml" alt="uml diagram" title="" /></p>
+<h3 id="step-by-step">Step by Step</h3>
+<ol>
+<li><strong>Version extraction</strong> — The middleware reads <code>X-API-Version</code> header or <code>api_version</code> query param</li>
+<li><strong>Upgrade loop</strong> — For each migration between extracted version and latest, apply upgrade transformers (path
+   rewrites, request body transforms)</li>
+<li><strong>Endpoint execution</strong> — Your code runs with the latest format, unaware of versioning</li>
+<li><strong>Downgrade loop</strong> — For each migration from latest back to extracted version, apply downgrade transformers (response
+   body transforms)</li>
+</ol>
+<h2 id="state-reconstruction">State Reconstruction</h2>
+<p>Migrations store <strong>deltas</strong>, not full schemas. To get the API schema at version N, we apply all existing deltas:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>empty → apply(m_0001) → v1 → apply(m_0002) → v2 → apply(m_0003) → v3
+</code></pre></div>
+<p>This allows our <code>makeapimigrations</code> command to compare the state resulting from all deltas against the state in your
+code.
+That difference can <em>also</em> be expressed as a version delta, and is what's saved into the newest migration file.</p>
+<p><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiBjb250ZW50U3R5bGVUeXBlPSJ0ZXh0L2NzcyIgZGF0YS1kaWFncmFtLXR5cGU9IkRFU0NSSVBUSU9OIiBoZWlnaHQ9IjQ0OHB4IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBzdHlsZT0id2lkdGg6MjUxcHg7aGVpZ2h0OjQ0OHB4O2JhY2tncm91bmQ6I0ZGRkZGRjsiIHZlcnNpb249IjEuMSIgdmlld0JveD0iMCAwIDI1MSA0NDgiIHdpZHRoPSIyNTFweCIgem9vbUFuZFBhbj0ibWFnbmlmeSI+PGRlZnMvPjxnPjwhLS1lbnRpdHkgRW1wdHktLT48ZyBjbGFzcz0iZW50aXR5IiBkYXRhLWVudGl0eT0iRW1wdHkiIGRhdGEtc291cmNlLWxpbmU9IjIiIGRhdGEtdWlkPSJlbnQwMDAyIiBpZD0iZW50aXR5X0VtcHR5Ij48cmVjdCBmaWxsPSIjRjFGMUYxIiBoZWlnaHQ9IjM2LjI5NjkiIHJ4PSIyLjUiIHJ5PSIyLjUiIHN0eWxlPSJzdHJva2U6IzE4MTgxODtzdHJva2Utd2lkdGg6MC41OyIgd2lkdGg9IjEwNi42NTIzIiB4PSI3IiB5PSI3Ii8+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iODYuNjUyMyIgeD0iMTciIHk9IjI5Ljk5NTEiPkVtcHR5IFN0YXRlPC90ZXh0PjwvZz48IS0tZW50aXR5IFYxLS0+PGcgY2xhc3M9ImVudGl0eSIgZGF0YS1lbnRpdHk9IlYxIiBkYXRhLXNvdXJjZS1saW5lPSIzIiBkYXRhLXVpZD0iZW50MDAwMyIgaWQ9ImVudGl0eV9WMSI+PHJlY3QgZmlsbD0iI0YxRjFGMSIgaGVpZ2h0PSIzNi4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI4NS45MjU4IiB4PSIxNy41IiB5PSIxNTAiLz48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI2NS45MjU4IiB4PSIyNy41IiB5PSIxNzIuOTk1MSI+VmVyc2lvbiAxPC90ZXh0PjwvZz48IS0tZW50aXR5IFYyLS0+PGcgY2xhc3M9ImVudGl0eSIgZGF0YS1lbnRpdHk9IlYyIiBkYXRhLXNvdXJjZS1saW5lPSI0IiBkYXRhLXVpZD0iZW50MDAwNCIgaWQ9ImVudGl0eV9WMiI+PHJlY3QgZmlsbD0iI0YxRjFGMSIgaGVpZ2h0PSIzNi4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI4NS45MjU4IiB4PSIxNy41IiB5PSIyNzgiLz48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI2NS45MjU4IiB4PSIyNy41IiB5PSIzMDAuOTk1MSI+VmVyc2lvbiAyPC90ZXh0PjwvZz48IS0tZW50aXR5IFYzLS0+PGcgY2xhc3M9ImVudGl0eSIgZGF0YS1lbnRpdHk9IlYzIiBkYXRhLXNvdXJjZS1saW5lPSI1IiBkYXRhLXVpZD0iZW50MDAwNSIgaWQ9ImVudGl0eV9WMyI+PHJlY3QgZmlsbD0iI0YxRjFGMSIgaGVpZ2h0PSIzNi4yOTY5IiByeD0iMi41IiByeT0iMi41IiBzdHlsZT0ic3Ryb2tlOiMxODE4MTg7c3Ryb2tlLXdpZHRoOjAuNTsiIHdpZHRoPSI4NS45MjU4IiB4PSIxNy41IiB5PSI0MDYiLz48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI2NS45MjU4IiB4PSIyNy41IiB5PSI0MjguOTk1MSI+VmVyc2lvbiAzPC90ZXh0PjwvZz48ZyBjbGFzcz0iZW50aXR5IiBkYXRhLWVudGl0eT0iR01OOSIgZGF0YS1zb3VyY2UtbGluZT0iMTIiIGRhdGEtdWlkPSJlbnQwMDEwIiBpZD0iZW50aXR5X0dNTjkiPjxwYXRoIGQ9Ik0xMzksNDExLjUgTDEzOSw0MjAgTDEwMy44MSw0MjQgTDEzOSw0MjggTDEzOSw0MzYuNjMyOCBBMCwwIDAgMCAwIDEzOSw0MzYuNjMyOCBMMjM0LjAzOTEsNDM2LjYzMjggQTAsMCAwIDAgMCAyMzQuMDM5MSw0MzYuNjMyOCBMMjM0LjAzOTEsNDIxLjUgTDIyNC4wMzkxLDQxMS41IEwxMzksNDExLjUgQTAsMCAwIDAgMCAxMzksNDExLjUiIGZpbGw9IiNGRUZGREQiIHN0eWxlPSJzdHJva2U6IzE4MTgxODtzdHJva2Utd2lkdGg6MC41OyIvPjxwYXRoIGQ9Ik0yMjQuMDM5MSw0MTEuNSBMMjI0LjAzOTEsNDIxLjUgTDIzNC4wMzkxLDQyMS41IEwyMjQuMDM5MSw0MTEuNSIgZmlsbD0iI0ZFRkZERCIgc3R5bGU9InN0cm9rZTojMTgxODE4O3N0cm9rZS13aWR0aDowLjU7Ii8+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iNzQuMDM5MSIgeD0iMTQ1IiB5PSI0MjguNTY2OSI+Q3VycmVudCBBUEk8L3RleHQ+PC9nPjwhLS1saW5rIEVtcHR5IHRvIFYxLS0+PGcgY2xhc3M9ImxpbmsiIGRhdGEtZW50aXR5LTE9IkVtcHR5IiBkYXRhLWVudGl0eS0yPSJWMSIgZGF0YS1zb3VyY2UtbGluZT0iNyIgZGF0YS11aWQ9ImxuazYiIGlkPSJsaW5rX0VtcHR5X1YxIj48cGF0aCBkPSJNNjAuNSw0My4wMSBDNjAuNSw3MC4xMSA2MC41LDExNi43OSA2MC41LDE0My45MyIgZmlsbD0ibm9uZSIgaWQ9IkVtcHR5LXRvLVYxIiBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7Ii8+PHBvbHlnb24gZmlsbD0iIzAwODA4MCIgcG9pbnRzPSI2MC41LDE0OS45Myw2NC41LDE0MC45Myw2MC41LDE0NC45Myw1Ni41LDE0MC45Myw2MC41LDE0OS45MyIgc3R5bGU9InN0cm9rZTojMDA4MDgwO3N0cm9rZS13aWR0aDoxOyIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjUyLjI0NzYiIHg9Ijc0LjY4MDkiIHk9Ijg2LjA2NjkiPm1fMDAwMTwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI3OC42MDk0IiB4PSI2MS41IiB5PSIxMDEuMTk5NyI+K1BlcnNvbk91dDwvdGV4dD48dGV4dCBmaWxsPSIjMDAwMDAwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgbGVuZ3RoQWRqdXN0PSJzcGFjaW5nIiB0ZXh0TGVuZ3RoPSI2Ni42MDYiIHg9IjY3LjUwMTciIHk9IjExNi4zMzI1Ij4rL3BlcnNvbnM8L3RleHQ+PC9nPjwhLS1saW5rIFYxIHRvIFYyLS0+PGcgY2xhc3M9ImxpbmsiIGRhdGEtZW50aXR5LTE9IlYxIiBkYXRhLWVudGl0eS0yPSJWMiIgZGF0YS1zb3VyY2UtbGluZT0iOCIgZGF0YS11aWQ9ImxuazciIGlkPSJsaW5rX1YxX1YyIj48cGF0aCBkPSJNNjAuNSwxODYuMjYgQzYwLjUsMjEwLjM4IDYwLjUsMjQ3Ljk0IDYwLjUsMjcxLjk1IiBmaWxsPSJub25lIiBpZD0iVjEtdG8tVjIiIHN0eWxlPSJzdHJva2U6IzAwODA4MDtzdHJva2Utd2lkdGg6MTsiLz48cG9seWdvbiBmaWxsPSIjMDA4MDgwIiBwb2ludHM9IjYwLjUsMjc3Ljk1LDY0LjUsMjY4Ljk1LDYwLjUsMjcyLjk1LDU2LjUsMjY4Ljk1LDYwLjUsMjc3Ljk1IiBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7Ii8+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iNTIuMjQ3NiIgeD0iMTE2LjQ2MTIiIHk9IjIyOS4wNjY5Ij5tXzAwMDI8L3RleHQ+PHRleHQgZmlsbD0iIzAwMDAwMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxlbmd0aEFkanVzdD0ic3BhY2luZyIgdGV4dExlbmd0aD0iMTYyLjE2OTkiIHg9IjYxLjUiIHk9IjI0NC4xOTk3Ij5+UGVyc29uT3V0IChhZGQgcGhvbmUpPC90ZXh0PjwvZz48IS0tbGluayBWMiB0byBWMy0tPjxnIGNsYXNzPSJsaW5rIiBkYXRhLWVudGl0eS0xPSJWMiIgZGF0YS1lbnRpdHktMj0iVjMiIGRhdGEtc291cmNlLWxpbmU9IjkiIGRhdGEtdWlkPSJsbms4IiBpZD0ibGlua19WMl9WMyI+PHBhdGggZD0iTTYwLjUsMzE0LjI2IEM2MC41LDMzOC4zOCA2MC41LDM3NS45NCA2MC41LDM5OS45NSIgZmlsbD0ibm9uZSIgaWQ9IlYyLXRvLVYzIiBzdHlsZT0ic3Ryb2tlOiMwMDgwODA7c3Ryb2tlLXdpZHRoOjE7Ii8+PHBvbHlnb24gZmlsbD0iIzAwODA4MCIgcG9pbnRzPSI2MC41LDQwNS45NSw2NC41LDM5Ni45NSw2MC41LDQwMC45NSw1Ni41LDM5Ni45NSw2MC41LDQwNS45NSIgc3R5bGU9InN0cm9rZTojMDA4MDgwO3N0cm9rZS13aWR0aDoxOyIvPjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjUyLjI0NzYiIHg9IjEyNi41MDMyIiB5PSIzNTcuMDY2OSI+bV8wMDAzPC90ZXh0Pjx0ZXh0IGZpbGw9IiMwMDAwMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBsZW5ndGhBZGp1c3Q9InNwYWNpbmciIHRleHRMZW5ndGg9IjE4Mi4yNTM5IiB4PSI2MS41IiB5PSIzNzIuMTk5NyI+flBlcnNvbk91dCAoZW1haWwmIzg1OTQ7ZW1haWxzKTwvdGV4dD48L2c+PCEtLVNSQz1bYlA3RklXQ240Q1JseW5KM1lqMllmVGpUQjVQQkdRaTdKblE0ZFdlb3g4eFJPM1E5c0luSUg4eS1XOF9lYXZYYWhMWWUxdEQ5WGtfdHBQX0NqNzRSb0pFbU1aanlXTFMwQTdIamo2OEx1YWlnN1lraE1yTkVqVEdNM3dNZXJldkxCcGQ4blpJVUo5OVpGNHR4dnp2ZUY0ZUxVdkNLWWxfNkpwZ1NoRE5GRXgxWmFicVl3cUdYM0ZzdFd1UVZNYk81Tm1jZ0JETlU3OG1jWlhLNlctZG1VcmdtTjNYSWJNSENoY2xaRGRaZG83NjJyNjJDVm1EQmpldEcyYVRITmV4c1FMY2RQVmtxbEREb1dBeEtPMzNwTVYwQ3dfaXFKS1NoVFJKbWY1UXRoVkZsZU9iMTBudzlQQk9iaXZMdy1vNm5Ic005UGtxTnJHVkZIM0pWZWxha29aSzktVmQtNFUtYzN3MnFPeEpYOHI0X1hEUkdkdGJoUlRad25VODZNOUtPOEZXMl0tLT48L2c+PC9zdmc+" class="uml" alt="uml diagram" title="" /></p>
+<p>The state stored in the migration deltas does not cover <em>all</em> possible OpenAPI fields.
+To allow you to add examples, auth, ..., the runtime uses deltas backwards: It takes the openapi json currently
+generated
+by your NinjaAPI, and applies the inverse of each delta to get to the target version.</p>
+<h2 id="transformation-engine">Transformation Engine</h2>
+<h3 id="schema-transformers">Schema Transformers</h3>
+<p>Schema transformers apply <strong>recursively</strong> wherever a schema appears:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># PersonOut might appear in:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># - Direct response body</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># - Nested in TeamOut.leader</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># - Items in list[PersonOut]</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># - Union types: PersonOut | CompanyOut</span>
+</code></pre></div>
+<p>The engine traverses the response structure and applies the appropriate transformer at each location.</p>
+<h3 id="transformation-order">Transformation Order</h3>
+<p>For a request from v1 to a v3 API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>v1 request → upgrade(m_0002) → upgrade(m_0003) → v3 endpoint
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>v3 response → downgrade(m_0003) → downgrade(m_0002) → v1 response
+</code></pre></div>
+<p>Migrations are applied in sequence, forwards for upgrades, backwards for downgrades.</p>
+<p>This allows each transformer to be written in isolation: it only needs to concern itself how to get a schema from
+version n to version n+1, and back.</p>
+<h2 id="middleware-details">Middleware Details</h2>
+<p>The <code>VersionedAPIMiddleware</code>:</p>
+<ol>
+<li><strong>Discovers APIs</strong> — Finds all <code>VersionedNinjaAPI</code> instances by introspecting URL patterns</li>
+<li><strong>Caches migrations</strong> — Loads migrations once, caches API states</li>
+<li><strong>Handles async</strong> — Supports both sync and async Django</li>
+<li><strong>Preserves headers</strong> — Copies response headers through transformations</li>
+</ol>
+<h3 id="per-request-state">Per-Request State</h3>
+<p>The middleware attaches version info to the request:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">request</span><span class="o">.</span><span class="n">api_version</span>  <span class="c1"># &quot;1&quot; - the resolved version</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">request</span><span class="o">.</span><span class="n">api_latest_version</span>  <span class="c1"># &quot;3&quot; - the current latest</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">request</span><span class="o">.</span><span class="n">original_path</span>  <span class="c1"># &quot;/persons/1&quot; - before rewriting (if rewritten)</span>
+</code></pre></div>
+<h2 id="openapi-generation">OpenAPI Generation</h2>
+<p>The versioned OpenAPI generator:</p>
+<ol>
+<li>Loads migrations up to the requested version</li>
+<li>Reconstructs the API state at that version</li>
+<li>Generates an OpenAPI schema reflecting that state</li>
+</ol>
+<p>This means <code>/api/docs?version=1</code> shows the API as it was at v1, with old paths, old schemas, and old parameters.</p>
+<details class="info">
+<summary>Why Deltas Instead of Full Schemas?</summary>
+<p>Storing full schemas at each version would be simpler, but result in much larger migration files:</p>
+<ul>
+<li>Most changes are small (add a field, rename an endpoint)</li>
+<li>Storing the json of each state would also include all the json schema data for <em>unchanged</em> endpoints and schemas.</li>
+<li>Deltas make diffs obvious and reviewable</li>
+</ul>
+<p>The tradeoff is that reconstructing state requires applying all migrations in sequence. This is cached in production,
+so the cost is paid once per process startup.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
