@@ -1,8 +1,26 @@
 [project]
 name = "django-ninja-crane"
-version = "0.1.0"
+version = "0"
 description = "Add versioning and migrations for your Django Ninja API."
 requires-python = ">=3.12"
+readme = "README.md"
+
+authors = [
+    { name = "Lode Rosseel", email = "lode@braced.dev" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+    "Framework :: Django",
+    "Framework :: Django :: 6.0",
+]
+
+
 dependencies = [
     "django>=6.0",
     "django-ninja>=1.5.1",
@@ -26,7 +44,13 @@ docs = [
     "mkdocstrings[python]>=1.0.1",
 ]
 
+
+[project.urls]
+Repository = "https://github.com/lode-braced/django-ninja-crane"
+Documentation = "https://lode-braced.github.io/django-ninja-crane/"
+
 [tool.ruff]
+
 line-length = 100
 
 [tool.pytest.ini_options]
@@ -35,3 +59,11 @@ asyncio_mode = "auto"
 
 [tool.ty.src]
 exclude = ["tests/", "test_app/", "test_server/"]
+
+[build-system]
+requires = ["uv_build>=0.5.15"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "crane"
