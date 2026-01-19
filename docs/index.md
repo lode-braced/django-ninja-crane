@@ -1,3 +1,4 @@
+<img src="crane.png" alt="django-ninja-crane" width="200">
 # django-ninja-crane
 
 **Stripe-style API versioning for Django Ninja.**

@@ -1,3 +1,6 @@
+
+  <img src="docs/crane.png" alt="django-ninja-crane" width="200">
+
 # django-ninja-crane
 
 Stripe-style API versioning and migrations for [Django Ninja](https://django-ninja.dev/).
