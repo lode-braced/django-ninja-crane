@@ -28,3 +28,28 @@ jobs:
         run: uv build
       - name: Publish to PyPI
         run: uv publish
+
+
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: 'auto'
+      - name: Setup plantuml
+        run: |
+          sudo apt-get -y install openjdk-17-jre-headless graphviz
+          curl -L https://github.com/plantuml/plantuml/releases/download/v1.2025.2/plantuml-1.2025.2.jar -o /usr/local/bin/plantuml.jar
+          echo '#!/bin/bash' > /usr/local/bin/plantuml
+          echo 'java -jar /usr/local/bin/plantuml.jar "$@"' >> /usr/local/bin/plantuml
+          chmod +x /usr/local/bin/plantuml
+      - name: Deploy documentation
+        run: |
+          uv run --group docs mike deploy $(git describe --tags | sed 's/^v//') latest
