@@ -12,13 +12,16 @@ router = Router()
 
 class PersonIn(Schema):
     name: str
-    email: str
+    emails: list[str]
+    phone: str | None = None
+    address: str
 
 
 class PersonOut(Schema):
     id: int
     name: str
-    email: str
+    emails: list[str]
+    phone: str | None = None
     created_at: datetime
 
 
@@ -56,11 +59,12 @@ def delete_person(request, person_id: int):
 class PersonAddress(Schema):
     street: str
     city: str
+    zip_code: str | None = None
 
 
 class PersonFilter(Schema):
     name: str | None = None
-    email: str | None = None
+    emails: list[str] | None = None
     address: PersonAddress
 
 
@@ -83,8 +87,8 @@ def search_persons_model(request, filters: Query[PersonFilter]):
     qs = Person.objects.all()
     if filters.name:
         qs = qs.filter(name__icontains=filters.name)
-    if filters.email:
-        qs = qs.filter(email__icontains=filters.email)
+    if filters.emails:
+        qs = qs.filter(email__in=filters.emails)
     return qs
 
 

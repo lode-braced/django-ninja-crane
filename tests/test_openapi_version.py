@@ -213,8 +213,9 @@ class TestGetVersionedOpenapi:
         try:
             result = get_versioned_openapi(api, "test_latest_version", "v1")
 
-            assert "/users" in result["paths"]
-            assert "get" in result["paths"]["/users"]
+            # Paths include the API prefix (e.g., /api/users)
+            assert "/api/users" in result["paths"]
+            assert "get" in result["paths"]["/api/users"]
         finally:
             sys.path.remove(str(tmp_path))
             for key in list(sys.modules.keys()):
@@ -294,14 +295,15 @@ class TestGetVersionedOpenapi:
             # Request v1 (should not have /items)
             result_v1 = get_versioned_openapi(api, "test_backwards", "v1")
 
-            assert "/users" in result_v1["paths"]
-            assert "/items" not in result_v1["paths"]
+            # Paths include the API prefix (e.g., /api/users)
+            assert "/api/users" in result_v1["paths"]
+            assert "/api/items" not in result_v1["paths"]
 
             # Request v2 (should have both)
             result_v2 = get_versioned_openapi(api, "test_backwards", "v2")
 
-            assert "/users" in result_v2["paths"]
-            assert "/items" in result_v2["paths"]
+            assert "/api/users" in result_v2["paths"]
+            assert "/api/items" in result_v2["paths"]
         finally:
             sys.path.remove(str(tmp_path))
             for key in list(sys.modules.keys()):

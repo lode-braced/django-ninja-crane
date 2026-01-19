@@ -1,4 +1,4 @@
-from crane.api_version import ApiVersion, FieldInfo, PathOperation
+from crane.api_version import FieldInfo
 from crane.delta import (
     OperationAdded,
     OperationModified,
@@ -12,58 +12,40 @@ from crane.delta import (
 )
 
 
-def _make_operation(
-    method: str = "get",
-    path: str = "/test",
-    query_params: dict | None = None,
-    path_params: dict | None = None,
-    cookie_params: dict | None = None,
-    request_body_schema: list | None = None,
-    response_bodies: list | None = None,
-    operation_id: str = "test_op",
-    openapi_json: dict | None = None,
-) -> PathOperation:
-    return PathOperation(
-        method=method,  # type: ignore
-        path=path,
-        query_params=query_params or {},
-        path_params=path_params or {},
-        cookie_params=cookie_params or {},
-        request_body_schema=request_body_schema or [],
-        response_bodies=response_bodies or [],
-        operation_id=operation_id,
-        openapi_json=openapi_json or {"operationId": operation_id},
-    )
-
-
-def _make_api_version(
-    operations: list[PathOperation] | None = None,
-    schemas: dict | None = None,
-) -> ApiVersion:
-    path_ops: dict[str, list[PathOperation]] = {}
-    for op in operations or []:
-        if op.path not in path_ops:
-            path_ops[op.path] = []
-        path_ops[op.path].append(op)
-    return ApiVersion(
-        path_operations=path_ops,
-        schema_definitions=schemas or {},
-    )
-
-
 class TestCreateDeltaEmpty:
-    def test_identical_versions_produce_empty_delta(self):
-        op = _make_operation()
-        v1 = _make_api_version([op])
-        v2 = _make_api_version([op])
+    def test_identical_versions_produce_empty_delta(self, operation_factory, api_version_factory):
+        op = operation_factory()
+        v1 = api_version_factory([op])
+        v2 = api_version_factory([op])
 
         delta = create_delta(v1, v2)
 
         assert delta.actions == []
 
-    def test_empty_versions_produce_empty_delta(self):
-        v1 = _make_api_version()
-        v2 = _make_api_version()
+    def test_empty_versions_produce_empty_delta(self, api_version_factory):
+        v1 = api_version_factory()
+        v2 = api_version_factory()
+
+        delta = create_delta(v1, v2)
+
+        assert delta.actions == []
+
+    def test_parameter_order_difference_produces_no_change(
+        self, operation_factory, api_version_factory
+    ):
+        """Parameter order in openapi_json shouldn't trigger a modification."""
+        params_v1 = [
+            {"in": "query", "name": "name", "schema": {"type": "string"}},
+            {"in": "query", "name": "email", "schema": {"type": "string"}},
+        ]
+        params_v2 = [
+            {"in": "query", "name": "email", "schema": {"type": "string"}},
+            {"in": "query", "name": "name", "schema": {"type": "string"}},
+        ]
+        op1 = operation_factory(openapi_json={"operationId": "test", "parameters": params_v1})
+        op2 = operation_factory(openapi_json={"operationId": "test", "parameters": params_v2})
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
 
@@ -71,10 +53,10 @@ class TestCreateDeltaEmpty:
 
 
 class TestOperationAdded:
-    def test_new_operation_creates_operation_added(self):
-        v1 = _make_api_version()
-        op = _make_operation(path="/users", method="get", operation_id="get_users")
-        v2 = _make_api_version([op])
+    def test_new_operation_creates_operation_added(self, operation_factory, api_version_factory):
+        v1 = api_version_factory()
+        op = operation_factory(path="/users", method="get", operation_id="get_users")
+        v2 = api_version_factory([op])
 
         delta = create_delta(v1, v2)
 
@@ -87,10 +69,12 @@ class TestOperationAdded:
 
 
 class TestOperationRemoved:
-    def test_removed_operation_creates_operation_removed(self):
-        op = _make_operation(path="/users", method="delete", operation_id="delete_user")
-        v1 = _make_api_version([op])
-        v2 = _make_api_version()
+    def test_removed_operation_creates_operation_removed(
+        self, operation_factory, api_version_factory
+    ):
+        op = operation_factory(path="/users", method="delete", operation_id="delete_user")
+        v1 = api_version_factory([op])
+        v2 = api_version_factory()
 
         delta = create_delta(v1, v2)
 
@@ -103,11 +87,13 @@ class TestOperationRemoved:
 
 
 class TestOperationModified:
-    def test_changed_openapi_json_creates_operation_modified(self):
-        op1 = _make_operation(openapi_json={"operationId": "test", "summary": "Old summary"})
-        op2 = _make_operation(openapi_json={"operationId": "test", "summary": "New summary"})
-        v1 = _make_api_version([op1])
-        v2 = _make_api_version([op2])
+    def test_changed_openapi_json_creates_operation_modified(
+        self, operation_factory, api_version_factory
+    ):
+        op1 = operation_factory(openapi_json={"operationId": "test", "summary": "Old summary"})
+        op2 = operation_factory(openapi_json={"operationId": "test", "summary": "New summary"})
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
 
@@ -117,16 +103,18 @@ class TestOperationModified:
         assert action.old_openapi_json == {"summary": "Old summary"}
         assert action.new_openapi_json == {"summary": "New summary"}
 
-    def test_changed_query_params_creates_operation_modified(self):
+    def test_changed_query_params_creates_operation_modified(
+        self, operation_factory, api_version_factory
+    ):
         field1 = FieldInfo(source=None, json_schema_specification={"type": "string"}, required=True)
         field2 = FieldInfo(
             source=None, json_schema_specification={"type": "integer"}, required=True
         )
 
-        op1 = _make_operation(query_params={"name": field1})
-        op2 = _make_operation(query_params={"name": field2})
-        v1 = _make_api_version([op1])
-        v2 = _make_api_version([op2])
+        op1 = operation_factory(query_params={"name": field1})
+        op2 = operation_factory(query_params={"name": field2})
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
 
@@ -137,13 +125,13 @@ class TestOperationModified:
         assert action.old_params["query"]["name"] == field1
         assert action.new_params["query"]["name"] == field2
 
-    def test_added_query_param_in_modified(self):
+    def test_added_query_param_in_modified(self, operation_factory, api_version_factory):
         field = FieldInfo(source=None, json_schema_specification={"type": "string"}, required=True)
 
-        op1 = _make_operation(query_params={})
-        op2 = _make_operation(query_params={"name": field})
-        v1 = _make_api_version([op1])
-        v2 = _make_api_version([op2])
+        op1 = operation_factory(query_params={})
+        op2 = operation_factory(query_params={"name": field})
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
 
@@ -153,11 +141,11 @@ class TestOperationModified:
         assert "query" not in action.old_params
         assert action.new_params["query"]["name"] == field
 
-    def test_changed_response_refs(self):
-        op1 = _make_operation(response_bodies=["#/components/schemas/OldResponse"])
-        op2 = _make_operation(response_bodies=["#/components/schemas/NewResponse"])
-        v1 = _make_api_version([op1])
-        v2 = _make_api_version([op2])
+    def test_changed_response_refs(self, operation_factory, api_version_factory):
+        op1 = operation_factory(response_bodies=["#/components/schemas/OldResponse"])
+        op2 = operation_factory(response_bodies=["#/components/schemas/NewResponse"])
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
 
@@ -169,10 +157,10 @@ class TestOperationModified:
 
 
 class TestSchemaDefinitionAdded:
-    def test_new_schema_creates_schema_added(self):
+    def test_new_schema_creates_schema_added(self, api_version_factory):
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-        v1 = _make_api_version(schemas={})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": schema})
+        v1 = api_version_factory(schemas={})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": schema})
 
         delta = create_delta(v1, v2)
 
@@ -184,10 +172,10 @@ class TestSchemaDefinitionAdded:
 
 
 class TestSchemaDefinitionRemoved:
-    def test_removed_schema_creates_schema_removed(self):
+    def test_removed_schema_creates_schema_removed(self, api_version_factory):
         schema = {"type": "object", "properties": {"id": {"type": "integer"}}}
-        v1 = _make_api_version(schemas={"#/components/schemas/User": schema})
-        v2 = _make_api_version(schemas={})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": schema})
+        v2 = api_version_factory(schemas={})
 
         delta = create_delta(v1, v2)
 
@@ -199,7 +187,7 @@ class TestSchemaDefinitionRemoved:
 
 
 class TestSchemaDefinitionModified:
-    def test_changed_property_creates_schema_modified(self):
+    def test_changed_property_creates_schema_modified(self, api_version_factory):
         old_schema = {
             "type": "object",
             "properties": {"name": {"type": "string"}},
@@ -208,8 +196,8 @@ class TestSchemaDefinitionModified:
             "type": "object",
             "properties": {"name": {"type": "string", "maxLength": 100}},
         }
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
 
@@ -221,7 +209,7 @@ class TestSchemaDefinitionModified:
         assert action.old_schema == {"properties": {"name": {"type": "string"}}}
         assert action.new_schema == {"properties": {"name": {"type": "string", "maxLength": 100}}}
 
-    def test_added_property_in_modified(self):
+    def test_added_property_in_modified(self, api_version_factory):
         old_schema = {
             "type": "object",
             "properties": {"name": {"type": "string"}},
@@ -233,8 +221,8 @@ class TestSchemaDefinitionModified:
                 "email": {"type": "string"},
             },
         }
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
 
@@ -245,11 +233,11 @@ class TestSchemaDefinitionModified:
         assert "email" not in action.old_schema.get("properties", {})
         assert action.new_schema["properties"]["email"] == {"type": "string"}
 
-    def test_changed_required_fields(self):
+    def test_changed_required_fields(self, api_version_factory):
         old_schema = {"type": "object", "required": ["name"]}
         new_schema = {"type": "object", "required": ["name", "email"]}
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
 
@@ -259,12 +247,12 @@ class TestSchemaDefinitionModified:
         assert action.old_schema == {"required": ["name"]}
         assert action.new_schema == {"required": ["name", "email"]}
 
-    def test_none_values_preserved_in_diff(self):
+    def test_none_values_preserved_in_diff(self, api_version_factory):
         """Ensure None/null values are stored in diffs, not dropped."""
         old_schema = {"type": "object", "description": "A user"}
         new_schema = {"type": "object", "description": None}  # Explicitly set to None
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
 
@@ -274,12 +262,12 @@ class TestSchemaDefinitionModified:
         assert action.old_schema == {"description": "A user"}
         assert action.new_schema == {"description": None}  # None should be preserved
 
-    def test_none_to_value_change(self):
+    def test_none_to_value_change(self, api_version_factory):
         """Ensure change from None to a value is captured."""
         old_schema = {"type": "object", "default": None}
         new_schema = {"type": "object", "default": "foo"}
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
 
@@ -293,27 +281,29 @@ class TestSchemaDefinitionModified:
 class TestForwardsDerivation:
     """Tests for rebuilding ApiVersion from deltas only."""
 
-    def test_first_delta_from_empty_captures_all_operations(self):
+    def test_first_delta_from_empty_captures_all_operations(
+        self, operation_factory, api_version_factory
+    ):
         """First delta from empty should have all ops as OperationAdded."""
-        op1 = _make_operation(path="/users", method="get", operation_id="list_users")
-        op2 = _make_operation(path="/users", method="post", operation_id="create_user")
-        v1 = _make_api_version([op1, op2])
+        op1 = operation_factory(path="/users", method="get", operation_id="list_users")
+        op2 = operation_factory(path="/users", method="post", operation_id="create_user")
+        v1 = api_version_factory([op1, op2])
 
-        delta = create_delta(_make_api_version(), v1)
+        delta = create_delta(api_version_factory(), v1)
 
         # Should have 2 OperationAdded actions
         added_actions = [a for a in delta.actions if isinstance(a, OperationAdded)]
         assert len(added_actions) == 2
 
-    def test_first_delta_from_empty_captures_all_schemas(self):
+    def test_first_delta_from_empty_captures_all_schemas(self, api_version_factory):
         """First delta from empty should have all schemas as SchemaDefinitionAdded."""
         schemas = {
             "#/components/schemas/User": {"type": "object"},
             "#/components/schemas/Post": {"type": "object"},
         }
-        v1 = _make_api_version(schemas=schemas)
+        v1 = api_version_factory(schemas=schemas)
 
-        delta = create_delta(_make_api_version(), v1)
+        delta = create_delta(api_version_factory(), v1)
 
         added_actions = [a for a in delta.actions if isinstance(a, SchemaDefinitionAdded)]
         assert len(added_actions) == 2
@@ -322,11 +312,11 @@ class TestForwardsDerivation:
 class TestApplyDeltaForwards:
     """Tests for applying deltas forwards (old -> new)."""
 
-    def test_apply_operation_added(self):
+    def test_apply_operation_added(self, operation_factory, api_version_factory):
         """Applying OperationAdded forwards should add the operation."""
-        op = _make_operation(path="/users", method="get", operation_id="list_users")
-        v1 = _make_api_version()
-        v2 = _make_api_version([op])
+        op = operation_factory(path="/users", method="get", operation_id="list_users")
+        v1 = api_version_factory()
+        v2 = api_version_factory([op])
 
         delta = create_delta(v1, v2)
         result = apply_delta_forwards(v1, delta)
@@ -335,18 +325,18 @@ class TestApplyDeltaForwards:
         assert len(result.path_operations["/users"]) == 1
         assert result.path_operations["/users"][0].operation_id == "list_users"
 
-    def test_apply_operation_removed(self):
+    def test_apply_operation_removed(self, operation_factory, api_version_factory):
         """Applying OperationRemoved forwards should remove the operation."""
-        op = _make_operation(path="/users", method="delete", operation_id="delete_user")
-        v1 = _make_api_version([op])
-        v2 = _make_api_version()
+        op = operation_factory(path="/users", method="delete", operation_id="delete_user")
+        v1 = api_version_factory([op])
+        v2 = api_version_factory()
 
         delta = create_delta(v1, v2)
         result = apply_delta_forwards(v1, delta)
 
         assert "/users" not in result.path_operations
 
-    def test_apply_schema_property_added(self):
+    def test_apply_schema_property_added(self, api_version_factory):
         """Applying schema with added property forwards should add the property."""
         old_schema = {
             "type": "object",
@@ -359,8 +349,8 @@ class TestApplyDeltaForwards:
                 "email": {"type": "string"},
             },
         }
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
         result = apply_delta_forwards(v1, delta)
@@ -370,7 +360,7 @@ class TestApplyDeltaForwards:
         assert user_schema["properties"]["email"] == {"type": "string"}
         assert user_schema["properties"]["name"] == {"type": "string"}
 
-    def test_apply_schema_property_removed(self):
+    def test_apply_schema_property_removed(self, api_version_factory):
         """Applying schema with removed property forwards should remove the property."""
         old_schema = {
             "type": "object",
@@ -383,8 +373,8 @@ class TestApplyDeltaForwards:
             "type": "object",
             "properties": {"name": {"type": "string"}},
         }
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
         result = apply_delta_forwards(v1, delta)
@@ -393,14 +383,14 @@ class TestApplyDeltaForwards:
         assert "email" not in user_schema["properties"]
         assert user_schema["properties"]["name"] == {"type": "string"}
 
-    def test_apply_query_param_added(self):
+    def test_apply_query_param_added(self, operation_factory, api_version_factory):
         """Applying operation with added query param forwards should add the param."""
         field = FieldInfo(source=None, json_schema_specification={"type": "string"}, required=True)
 
-        op1 = _make_operation(query_params={})
-        op2 = _make_operation(query_params={"name": field})
-        v1 = _make_api_version([op1])
-        v2 = _make_api_version([op2])
+        op1 = operation_factory(query_params={})
+        op2 = operation_factory(query_params={"name": field})
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
         result = apply_delta_forwards(v1, delta)
@@ -409,14 +399,14 @@ class TestApplyDeltaForwards:
         assert "name" in result_op.query_params
         assert result_op.query_params["name"] == field
 
-    def test_apply_query_param_removed(self):
+    def test_apply_query_param_removed(self, operation_factory, api_version_factory):
         """Applying operation with removed query param forwards should remove the param."""
         field = FieldInfo(source=None, json_schema_specification={"type": "string"}, required=True)
 
-        op1 = _make_operation(query_params={"name": field})
-        op2 = _make_operation(query_params={})
-        v1 = _make_api_version([op1])
-        v2 = _make_api_version([op2])
+        op1 = operation_factory(query_params={"name": field})
+        op2 = operation_factory(query_params={})
+        v1 = api_version_factory([op1])
+        v2 = api_version_factory([op2])
 
         delta = create_delta(v1, v2)
         result = apply_delta_forwards(v1, delta)
@@ -424,14 +414,14 @@ class TestApplyDeltaForwards:
         result_op = result.path_operations["/test"][0]
         assert "name" not in result_op.query_params
 
-    def test_roundtrip_forwards(self):
+    def test_roundtrip_forwards(self, operation_factory, api_version_factory):
         """Applying delta forwards should produce the new version."""
-        op1 = _make_operation(path="/users", method="get", operation_id="list")
-        op2 = _make_operation(path="/users", method="post", operation_id="create")
+        op1 = operation_factory(path="/users", method="get", operation_id="list")
+        op2 = operation_factory(path="/users", method="post", operation_id="create")
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
 
-        v1 = _make_api_version([op1], schemas={"#/components/schemas/User": schema})
-        v2 = _make_api_version(
+        v1 = api_version_factory([op1], schemas={"#/components/schemas/User": schema})
+        v2 = api_version_factory(
             [op2],
             schemas={
                 "#/components/schemas/User": {
@@ -459,22 +449,22 @@ class TestApplyDeltaForwards:
 class TestApplyDeltaBackwards:
     """Tests for applying deltas backwards (new -> old)."""
 
-    def test_apply_operation_added_backwards(self):
+    def test_apply_operation_added_backwards(self, operation_factory, api_version_factory):
         """Applying OperationAdded backwards should remove the operation."""
-        op = _make_operation(path="/users", method="get", operation_id="list_users")
-        v1 = _make_api_version()
-        v2 = _make_api_version([op])
+        op = operation_factory(path="/users", method="get", operation_id="list_users")
+        v1 = api_version_factory()
+        v2 = api_version_factory([op])
 
         delta = create_delta(v1, v2)
         result = apply_delta_backwards(v2, delta)
 
         assert "/users" not in result.path_operations
 
-    def test_apply_operation_removed_backwards(self):
+    def test_apply_operation_removed_backwards(self, operation_factory, api_version_factory):
         """Applying OperationRemoved backwards should add the operation back."""
-        op = _make_operation(path="/users", method="delete", operation_id="delete_user")
-        v1 = _make_api_version([op])
-        v2 = _make_api_version()
+        op = operation_factory(path="/users", method="delete", operation_id="delete_user")
+        v1 = api_version_factory([op])
+        v2 = api_version_factory()
 
         delta = create_delta(v1, v2)
         result = apply_delta_backwards(v2, delta)
@@ -482,7 +472,7 @@ class TestApplyDeltaBackwards:
         assert "/users" in result.path_operations
         assert result.path_operations["/users"][0].operation_id == "delete_user"
 
-    def test_apply_schema_property_added_backwards(self):
+    def test_apply_schema_property_added_backwards(self, api_version_factory):
         """Applying schema with added property backwards should remove the property."""
         old_schema = {
             "type": "object",
@@ -495,8 +485,8 @@ class TestApplyDeltaBackwards:
                 "email": {"type": "string"},
             },
         }
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
         result = apply_delta_backwards(v2, delta)
@@ -505,7 +495,7 @@ class TestApplyDeltaBackwards:
         assert "email" not in user_schema["properties"]
         assert user_schema["properties"]["name"] == {"type": "string"}
 
-    def test_apply_schema_property_removed_backwards(self):
+    def test_apply_schema_property_removed_backwards(self, api_version_factory):
         """Applying schema with removed property backwards should add the property back."""
         old_schema = {
             "type": "object",
@@ -518,8 +508,8 @@ class TestApplyDeltaBackwards:
             "type": "object",
             "properties": {"name": {"type": "string"}},
         }
-        v1 = _make_api_version(schemas={"#/components/schemas/User": old_schema})
-        v2 = _make_api_version(schemas={"#/components/schemas/User": new_schema})
+        v1 = api_version_factory(schemas={"#/components/schemas/User": old_schema})
+        v2 = api_version_factory(schemas={"#/components/schemas/User": new_schema})
 
         delta = create_delta(v1, v2)
         result = apply_delta_backwards(v2, delta)
@@ -528,14 +518,14 @@ class TestApplyDeltaBackwards:
         assert "email" in user_schema["properties"]
         assert user_schema["properties"]["email"] == {"type": "string"}
 
-    def test_roundtrip_backwards(self):
+    def test_roundtrip_backwards(self, operation_factory, api_version_factory):
         """Applying delta backwards should produce the old version."""
-        op1 = _make_operation(path="/users", method="get", operation_id="list")
-        op2 = _make_operation(path="/users", method="post", operation_id="create")
+        op1 = operation_factory(path="/users", method="get", operation_id="list")
+        op2 = operation_factory(path="/users", method="post", operation_id="create")
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
 
-        v1 = _make_api_version([op1], schemas={"#/components/schemas/User": schema})
-        v2 = _make_api_version(
+        v1 = api_version_factory([op1], schemas={"#/components/schemas/User": schema})
+        v2 = api_version_factory(
             [op2],
             schemas={
                 "#/components/schemas/User": {
@@ -563,30 +553,30 @@ class TestApplyDeltaBackwards:
 class TestDeltaRebuildFromEmpty:
     """Tests for rebuilding ApiVersion from deltas only, starting from empty."""
 
-    def test_rebuild_single_version_from_empty(self):
+    def test_rebuild_single_version_from_empty(self, operation_factory, api_version_factory):
         """Can rebuild v1 by applying first delta to empty."""
-        op = _make_operation(path="/users", method="get", operation_id="list_users")
+        op = operation_factory(path="/users", method="get", operation_id="list_users")
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-        v1 = _make_api_version([op], schemas={"#/components/schemas/User": schema})
+        v1 = api_version_factory([op], schemas={"#/components/schemas/User": schema})
 
-        empty = _make_api_version()
+        empty = api_version_factory()
         delta = create_delta(empty, v1)
         result = apply_delta_forwards(empty, delta)
 
         assert "/users" in result.path_operations
         assert "#/components/schemas/User" in result.schema_definitions
 
-    def test_rebuild_multiple_versions_sequentially(self):
+    def test_rebuild_multiple_versions_sequentially(self, operation_factory, api_version_factory):
         """Can rebuild v2 by applying deltas sequentially from empty."""
         # v1: has GET /users
-        op1 = _make_operation(path="/users", method="get", operation_id="list_users")
-        v1 = _make_api_version([op1])
+        op1 = operation_factory(path="/users", method="get", operation_id="list_users")
+        v1 = api_version_factory([op1])
 
         # v2: adds POST /users, removes GET /users
-        op2 = _make_operation(path="/users", method="post", operation_id="create_user")
-        v2 = _make_api_version([op2])
+        op2 = operation_factory(path="/users", method="post", operation_id="create_user")
+        v2 = api_version_factory([op2])
 
-        empty = _make_api_version()
+        empty = api_version_factory()
         delta1 = create_delta(empty, v1)
         delta2 = create_delta(v1, v2)
 

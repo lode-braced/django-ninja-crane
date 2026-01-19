@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "crane",
     "test_app",
 ]
 
@@ -117,12 +118,3 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
-
-# Crane API versioning settings
-CRANE_SETTINGS = {
-    "version_header": "X-API-Version",
-    "version_query_param": "api_version",
-    "default_version": "latest",
-    "migrations_module": "test_app.api_migrations",
-    "api_url_prefix": "/api/",
-}

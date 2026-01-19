@@ -16,6 +16,14 @@ dev = [
     "pytest-django>=4.11.1",
     "ruff>=0.14.10",
 ]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocs-callouts>=1.14",
+    "plantuml-markdown>=3.10",
+    "mike>=2.1.3",
+    "mkdocs-awesome-nav>=3.3.0",
+]
 
 [tool.ruff]
 line-length = 100

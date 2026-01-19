@@ -27,6 +27,7 @@ def _ref_to_schema_name(ref: str) -> str:
 def api_version_to_openapi(
     api_version: ApiVersion,
     base_openapi: AnyJsonDict,
+    path_prefix: str = "",
 ) -> AnyJsonDict:
     """Convert an ApiVersion to a complete OpenAPI JSON document.
 
@@ -34,11 +35,15 @@ def api_version_to_openapi(
         api_version: The API version to convert.
         base_openapi: Base OpenAPI structure (info, servers, security, etc.)
                       Paths and components/schemas will be replaced.
+        path_prefix: URL prefix to prepend to all paths (e.g., "/api").
 
     Returns:
         Complete OpenAPI JSON document.
     """
     result = dict(base_openapi)
+
+    # Normalize prefix (ensure it doesn't end with slash)
+    prefix = path_prefix.rstrip("/") if path_prefix else ""
 
     # Build paths from path_operations
     paths: AnyJsonDict = {}
@@ -46,7 +51,9 @@ def api_version_to_openapi(
         path_item: AnyJsonDict = {}
         for op in operations:
             path_item[op.method] = op.openapi_json
-        paths[path] = path_item
+        # Add prefix to path
+        full_path = prefix + path if prefix else path
+        paths[full_path] = path_item
 
     result["paths"] = paths
 
@@ -99,9 +106,10 @@ def get_versioned_openapi(
             f"Version '{target_version}' not found in migrations. Available versions: {available}"
         )
 
-    # Get current API state and OpenAPI schema
+    # Get current API state and OpenAPI schema (with path prefix)
     current_state = create_api_version(api)
-    current_openapi = cast(AnyJsonDict, api.get_openapi_schema())
+    path_prefix = api.get_root_path({})
+    current_openapi = cast(AnyJsonDict, api.get_openapi_schema(path_prefix=path_prefix))
 
     # Apply backwards deltas from most recent to target (exclusive)
     # We need to reverse migrations from index (len-1) down to (target_index+1)
@@ -109,8 +117,8 @@ def get_versioned_openapi(
     for i in range(len(migrations) - 1, target_index, -1):
         state = apply_delta_backwards(state, migrations[i].delta)
 
-    # Convert the resulting state to OpenAPI format
-    return api_version_to_openapi(state, current_openapi)
+    # Convert the resulting state to OpenAPI format (with path prefix)
+    return api_version_to_openapi(state, current_openapi, path_prefix)
 
 
 def _find_version_index(migrations: list[LoadedMigration], version: str) -> int | None:

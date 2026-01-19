@@ -98,24 +98,29 @@ def _slugify(name: str, max_length: int = 50) -> str:
 def _module_to_path(migrations_module: str) -> Path:
     """Convert a module path to filesystem path.
 
-    'myapp.api_migrations' -> Path('/path/to/myapp/api_migrations')
+    Supports nested module paths:
+    - 'myapp.api_migrations' -> Path('/path/to/myapp/api_migrations')
+    - 'myapp.api_migrations.default' -> Path('/path/to/myapp/api_migrations/default')
     """
     spec = importlib.util.find_spec(migrations_module)
-    if spec is None or spec.origin is None:
-        # Module doesn't exist yet, try to find parent
-        parts = migrations_module.rsplit(".", 1)
-        if len(parts) == 2:
-            parent_module, submodule = parts
-            parent_spec = importlib.util.find_spec(parent_module)
-            if parent_spec and parent_spec.submodule_search_locations:
-                return Path(parent_spec.submodule_search_locations[0]) / submodule
-        raise MigrationGenerationError(f"Cannot resolve module path: {migrations_module}")
+    if spec is not None and spec.origin is not None:
+        # Module exists, return its directory
+        origin = Path(spec.origin)
+        if origin.name == "__init__.py":
+            return origin.parent
+        return origin.parent / migrations_module.rsplit(".", 1)[-1]
 
-    # Module exists, return its directory
-    origin = Path(spec.origin)
-    if origin.name == "__init__.py":
-        return origin.parent
-    return origin.parent / migrations_module.rsplit(".", 1)[-1]
+    # Module doesn't exist yet, try to find parent recursively
+    parts = migrations_module.rsplit(".", 1)
+    if len(parts) == 2:
+        parent_module, submodule = parts
+        try:
+            parent_path = _module_to_path(parent_module)
+            return parent_path / submodule
+        except MigrationGenerationError:
+            pass
+
+    raise MigrationGenerationError(f"Cannot resolve module path: {migrations_module}")
 
 
 def _get_next_sequence(migrations: list[LoadedMigration]) -> int:
@@ -126,11 +131,38 @@ def _get_next_sequence(migrations: list[LoadedMigration]) -> int:
 
 
 def _ensure_migrations_package(migrations_path: Path) -> None:
-    """Ensure the migrations directory exists with __init__.py."""
+    """Ensure the migrations directory exists with __init__.py at each level.
+
+    For nested paths like 'myapp/api_migrations/default/', creates __init__.py
+    in both 'api_migrations/' and 'api_migrations/default/'.
+    """
     migrations_path.mkdir(parents=True, exist_ok=True)
-    init_file = migrations_path / "__init__.py"
-    if not init_file.exists():
-        init_file.write_text("")
+
+    # Create __init__.py files at each level that needs one
+    # Walk up from the target path until we hit an existing __init__.py or package
+    current = migrations_path
+    init_files_needed: list[Path] = []
+
+    while current.name:  # Stop at filesystem root
+        init_file = current / "__init__.py"
+        if init_file.exists():
+            break
+        # Check if parent has __init__.py (we're inside a package)
+        parent_init = current.parent / "__init__.py"
+        if not parent_init.exists():
+            break
+        init_files_needed.append(init_file)
+        current = current.parent
+
+    # Create the __init__.py files
+    for init_file in init_files_needed:
+        if not init_file.exists():
+            init_file.write_text("")
+
+    # Always ensure the target directory has __init__.py
+    target_init = migrations_path / "__init__.py"
+    if not target_init.exists():
+        target_init.write_text("")
 
 
 # === Core Functions ===

@@ -504,11 +504,24 @@ class TestPathRewriteIntegration:
 class TestMiddlewareIntegration:
     """Integration tests for the middleware with Django test client."""
 
-    def test_middleware_version_extraction(self, settings):
+    def test_middleware_version_extraction(self):
         """Verify middleware extracts version from header."""
         from django.test import RequestFactory
 
         from crane.middleware import VersionedAPIMiddleware
+        from crane.versioned_api import VersionedNinjaAPI
+
+        # Clear any existing registered APIs
+        VersionedNinjaAPI.clear_registry()
+
+        # Create a test API
+        api = VersionedNinjaAPI(
+            api_label="version_test",
+            app_label="test_app",
+            url_prefix="/api/",
+            version_header="X-API-Version",
+            default_version="latest",
+        )
 
         # Create a mock get_response
         def mock_get_response(request):
@@ -518,41 +531,31 @@ class TestMiddlewareIntegration:
 
         middleware = VersionedAPIMiddleware(mock_get_response)
 
-        # Override settings for this test
-        settings.CRANE_SETTINGS = {
-            "version_header": "X-API-Version",
-            "version_query_param": "api_version",
-            "default_version": "latest",
-            "migrations_module": "",  # No migrations for this test
-            "api_url_prefix": "/api/",
-        }
-
-        # Reinitialize middleware with new settings
-        middleware = VersionedAPIMiddleware(mock_get_response)
-
         factory = RequestFactory()
 
         # Request with version header
         request = factory.get("/api/test", HTTP_X_API_VERSION="v1")
-        extracted = middleware._extract_version(request)
+        extracted = middleware._extract_version(request, api)
         assert extracted == "v1"
-
-        # Request with query param
-        request = factory.get("/api/test?api_version=v2")
-        extracted = middleware._extract_version(request)
-        assert extracted == "v2"
 
         # Request with no version (uses default)
         request = factory.get("/api/test")
-        extracted = middleware._extract_version(request)
+        extracted = middleware._extract_version(request, api)
         assert extracted == "latest"
 
-    def test_middleware_unknown_version_error(self, tmp_path: Path, settings):
+        # Clean up
+        VersionedNinjaAPI.clear_registry()
+
+    def test_middleware_unknown_version_error(self, tmp_path: Path):
         """Middleware returns 400 for unknown versions."""
         from django.http import JsonResponse
         from django.test import RequestFactory
 
         from crane.middleware import VersionedAPIMiddleware
+        from crane.versioned_api import VersionedNinjaAPI
+
+        # Clear any existing registered APIs
+        VersionedNinjaAPI.clear_registry()
 
         # Setup migrations
         migrations_dir = tmp_path / "mw_unknown"
@@ -576,13 +579,24 @@ class TestMiddlewareIntegration:
         try:
             generate_migration(api, "mw_unknown", "v1", "Initial")
 
-            settings.CRANE_SETTINGS = {
-                "version_header": "X-API-Version",
-                "version_query_param": "api_version",
-                "default_version": "latest",
-                "migrations_module": "mw_unknown",
-                "api_url_prefix": "/api/",
-            }
+            # Create a VersionedNinjaAPI that points to the migrations
+            versioned_api = VersionedNinjaAPI(
+                api_label="unknown_test",
+                app_label="mw",  # Will look for mw.api_migrations.unknown_test
+                url_prefix="/api/",
+            )
+            # Override migrations_module for this test
+            versioned_api._test_migrations_module = "mw_unknown"
+
+            # Monkey-patch migrations_module property for testing
+            original_migrations_module = type(versioned_api).migrations_module
+            type(versioned_api).migrations_module = property(
+                lambda self: getattr(
+                    self,
+                    "_test_migrations_module",
+                    f"{self.app_label}.api_migrations.{self.api_label}",
+                )
+            )
 
             def mock_get_response(request):
                 return JsonResponse({"status": "ok"})
@@ -601,13 +615,20 @@ class TestMiddlewareIntegration:
             for key in list(sys.modules.keys()):
                 if key.startswith("mw_unknown"):
                     del sys.modules[key]
+            # Restore original property
+            type(versioned_api).migrations_module = original_migrations_module
+            VersionedNinjaAPI.clear_registry()
 
-    def test_middleware_passthrough_for_latest(self, tmp_path: Path, settings):
+    def test_middleware_passthrough_for_latest(self, tmp_path: Path):
         """Middleware passes through unchanged for latest version."""
         from django.http import JsonResponse
         from django.test import RequestFactory
 
         from crane.middleware import VersionedAPIMiddleware
+        from crane.versioned_api import VersionedNinjaAPI
+
+        # Clear any existing registered APIs
+        VersionedNinjaAPI.clear_registry()
 
         migrations_dir = tmp_path / "mw_latest"
         migrations_dir.mkdir()
@@ -629,13 +650,24 @@ class TestMiddlewareIntegration:
         try:
             generate_migration(api, "mw_latest", "v1", "Initial")
 
-            settings.CRANE_SETTINGS = {
-                "version_header": "X-API-Version",
-                "version_query_param": "api_version",
-                "default_version": "latest",
-                "migrations_module": "mw_latest",
-                "api_url_prefix": "/api/",
-            }
+            # Create a VersionedNinjaAPI that points to the migrations
+            versioned_api = VersionedNinjaAPI(
+                api_label="latest_test",
+                app_label="mw",
+                url_prefix="/api/",
+            )
+            # Override migrations_module for this test
+            versioned_api._test_migrations_module = "mw_latest"
+
+            # Monkey-patch migrations_module property for testing
+            original_migrations_module = type(versioned_api).migrations_module
+            type(versioned_api).migrations_module = property(
+                lambda self: getattr(
+                    self,
+                    "_test_migrations_module",
+                    f"{self.app_label}.api_migrations.{self.api_label}",
+                )
+            )
 
             response_data = {"items": [{"name": "Widget"}]}
 
@@ -661,6 +693,9 @@ class TestMiddlewareIntegration:
             for key in list(sys.modules.keys()):
                 if key.startswith("mw_latest"):
                     del sys.modules[key]
+            # Restore original property
+            type(versioned_api).migrations_module = original_migrations_module
+            VersionedNinjaAPI.clear_registry()
 
 
 # =============================================================================

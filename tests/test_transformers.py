@@ -2,9 +2,14 @@
 
 from pathlib import Path
 
-from crane.api_version import PathOperation
 from crane.data_migrations import DataMigrationSet, OperationUpgrade, SchemaDowngrade, SchemaUpgrade
-from crane.delta import HttpMethod, SchemaDefinitionAdded, VersionDelta
+from crane.delta import (
+    OperationAdded,
+    OperationModified,
+    OperationRemoved,
+    SchemaDefinitionAdded,
+    VersionDelta,
+)
 from crane.migrations_generator import LoadedMigration
 from crane.transformers import (
     _get_migrations_between,
@@ -15,60 +20,20 @@ from crane.transformers import (
 )
 
 
-def make_migration(
-    sequence: int,
-    from_version: str | None,
-    to_version: str,
-    data_migrations: DataMigrationSet | None = None,
-    delta: VersionDelta | None = None,
-) -> LoadedMigration:
-    """Helper to create test migrations."""
-    return LoadedMigration(
-        sequence=sequence,
-        slug=f"m{sequence}",
-        file_path=Path(f"m_{sequence:04d}_m{sequence}.py"),
-        dependencies=[],
-        from_version=from_version,
-        to_version=to_version,
-        delta=delta or VersionDelta(actions=[]),
-        data_migrations=data_migrations,
-    )
-
-
-def make_operation(
-    method: HttpMethod = "get",
-    path: str = "/test",
-    response_bodies: list[str] | None = None,
-    request_body_schema: list[str] | None = None,
-) -> PathOperation:
-    """Helper to create test operations."""
-    return PathOperation(
-        method=method,
-        path=path,
-        query_params={},
-        path_params={},
-        cookie_params={},
-        request_body_schema=request_body_schema or [],
-        response_bodies=response_bodies or [],
-        operation_id="test_op",
-        openapi_json={},
-    )
-
-
 class TestGetMigrationsBetween:
-    def test_same_version_returns_empty(self):
+    def test_same_version_returns_empty(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2"),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2"),
         ]
         result = _get_migrations_between(migrations, "v1", "v1")
         assert result == []
 
-    def test_downgrade_returns_reverse_order(self):
+    def test_downgrade_returns_reverse_order(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2"),
-            make_migration(3, "v2", "v3"),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2"),
+            migration_factory(3, "v2", "v3"),
         ]
         result = _get_migrations_between(migrations, "v3", "v1")
         # Should return v3, v2 (in reverse order, excluding v1)
@@ -76,11 +41,11 @@ class TestGetMigrationsBetween:
         assert result[0].to_version == "v3"
         assert result[1].to_version == "v2"
 
-    def test_upgrade_returns_forward_order(self):
+    def test_upgrade_returns_forward_order(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2"),
-            make_migration(3, "v2", "v3"),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2"),
+            migration_factory(3, "v2", "v3"),
         ]
         result = _get_migrations_between(migrations, "v1", "v3")
         # Should return v2, v3 (in forward order, excluding v1)
@@ -88,9 +53,9 @@ class TestGetMigrationsBetween:
         assert result[0].to_version == "v2"
         assert result[1].to_version == "v3"
 
-    def test_unknown_version_returns_empty(self):
+    def test_unknown_version_returns_empty(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
+            migration_factory(1, None, "v1"),
         ]
         result = _get_migrations_between(migrations, "v1", "v99")
         assert result == []
@@ -100,24 +65,24 @@ class TestGetLatestVersion:
     def test_empty_migrations_returns_none(self):
         assert get_latest_version([]) is None
 
-    def test_returns_last_migration_version(self):
+    def test_returns_last_migration_version(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2"),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2"),
         ]
         assert get_latest_version(migrations) == "v2"
 
 
 class TestTransformResponse:
-    async def test_same_version_no_transform(self):
+    async def test_same_version_no_transform(self, operation_factory, migration_factory):
         data = {"name": "Alice", "is_active": True}
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
-        migrations = [make_migration(1, None, "v1")]
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
+        migrations = [migration_factory(1, None, "v1")]
 
         result = await transform_response(data, 200, operation, migrations, "v1", "v1")
         assert result == data
 
-    async def test_applies_schema_downgrade(self):
+    async def test_applies_schema_downgrade(self, operation_factory, migration_factory):
         def downgrade_person(data: dict) -> dict:
             data.pop("is_active", None)
             return data
@@ -129,11 +94,11 @@ class TestTransformResponse:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
         data = {"name": "Alice", "is_active": True}
 
         result = await transform_response(data, 200, operation, migrations, "v2", "v1")
@@ -141,7 +106,7 @@ class TestTransformResponse:
         assert result == {"name": "Alice"}
         assert "is_active" not in result
 
-    async def test_applies_multiple_downgrades_in_order(self):
+    async def test_applies_multiple_downgrades_in_order(self, operation_factory, migration_factory):
         def downgrade_v2(data: dict) -> dict:
             data.pop("field_v2", None)
             return data
@@ -151,8 +116,8 @@ class TestTransformResponse:
             return data
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(
+            migration_factory(1, None, "v1"),
+            migration_factory(
                 2,
                 "v1",
                 "v2",
@@ -162,7 +127,7 @@ class TestTransformResponse:
                     ]
                 ),
             ),
-            make_migration(
+            migration_factory(
                 3,
                 "v2",
                 "v3",
@@ -174,7 +139,7 @@ class TestTransformResponse:
             ),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/Test"])
+        operation = operation_factory(response_bodies=["#/components/schemas/Test"])
         data = {"name": "test", "field_v2": "v2", "field_v3": "v3"}
 
         # Downgrade from v3 to v1 should apply v3 downgrade first, then v2
@@ -184,7 +149,7 @@ class TestTransformResponse:
 
 
 class TestTransformResponseList:
-    async def test_transforms_each_item(self):
+    async def test_transforms_each_item(self, operation_factory, migration_factory):
         def downgrade_person(data: dict) -> dict:
             data.pop("is_active", None)
             return data
@@ -196,11 +161,11 @@ class TestTransformResponseList:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
         data = [
             {"name": "Alice", "is_active": True},
             {"name": "Bob", "is_active": False},
@@ -214,13 +179,13 @@ class TestTransformResponseList:
 
 
 class TestTransformRequest:
-    async def test_same_version_no_transform(self):
+    async def test_same_version_no_transform(self, operation_factory, migration_factory):
         body = {"name": "Alice"}
         params = {"limit": "10"}
-        operation = make_operation(
+        operation = operation_factory(
             method="post", request_body_schema=["#/components/schemas/PersonIn"]
         )
-        migrations = [make_migration(1, None, "v1")]
+        migrations = [migration_factory(1, None, "v1")]
 
         new_body, new_params = await transform_request(
             body, params, operation, migrations, "v1", "v1"
@@ -229,7 +194,7 @@ class TestTransformRequest:
         assert new_body == body
         assert new_params == params
 
-    async def test_applies_schema_upgrade(self):
+    async def test_applies_schema_upgrade(self, operation_factory, migration_factory):
         def upgrade_person(data: dict) -> dict:
             data.setdefault("is_active", True)
             return data
@@ -241,11 +206,11 @@ class TestTransformRequest:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(
+        operation = operation_factory(
             method="post", request_body_schema=["#/components/schemas/PersonIn"]
         )
         body = {"name": "Alice"}
@@ -254,7 +219,7 @@ class TestTransformRequest:
 
         assert new_body == {"name": "Alice", "is_active": True}
 
-    async def test_applies_multiple_upgrades_in_order(self):
+    async def test_applies_multiple_upgrades_in_order(self, operation_factory, migration_factory):
         def upgrade_v2(data: dict) -> dict:
             data.setdefault("field_v2", "default_v2")
             return data
@@ -264,8 +229,8 @@ class TestTransformRequest:
             return data
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(
+            migration_factory(1, None, "v1"),
+            migration_factory(
                 2,
                 "v1",
                 "v2",
@@ -275,7 +240,7 @@ class TestTransformRequest:
                     ]
                 ),
             ),
-            make_migration(
+            migration_factory(
                 3,
                 "v2",
                 "v3",
@@ -287,7 +252,9 @@ class TestTransformRequest:
             ),
         ]
 
-        operation = make_operation(method="post", request_body_schema=["#/components/schemas/Test"])
+        operation = operation_factory(
+            method="post", request_body_schema=["#/components/schemas/Test"]
+        )
         body = {"name": "test"}
 
         # Upgrade from v1 to v3 should apply v2 upgrade first, then v3
@@ -295,7 +262,7 @@ class TestTransformRequest:
 
         assert new_body == {"name": "test", "field_v2": "default_v2", "field_v3": "default_v3"}
 
-    async def test_none_body_skips_schema_upgrades(self):
+    async def test_none_body_skips_schema_upgrades(self, operation_factory, migration_factory):
         """When body is None, schema upgrades should be skipped."""
 
         def upgrade_person(data: dict) -> dict:
@@ -309,11 +276,11 @@ class TestTransformRequest:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(
+        operation = operation_factory(
             method="get", request_body_schema=["#/components/schemas/PersonIn"]
         )
 
@@ -326,7 +293,9 @@ class TestTransformRequest:
         assert new_body is None
         assert new_params == {"limit": "10"}
 
-    async def test_none_body_still_calls_operation_upgrade(self):
+    async def test_none_body_still_calls_operation_upgrade(
+        self, operation_factory, migration_factory
+    ):
         """Operation upgrades still receive None body and can transform params."""
 
         def upgrade_op(body: dict | None, params: dict) -> tuple[dict | None, dict]:
@@ -342,11 +311,11 @@ class TestTransformRequest:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(method="get", path="/test")
+        operation = operation_factory(method="get", path="/test")
 
         new_body, new_params = await transform_request(
             None, {"old_param": "value"}, operation, migrations, "v1", "v2"
@@ -359,12 +328,11 @@ class TestTransformRequest:
 class TestOperationAtVersion:
     """Test that operations are correctly looked up at specific versions."""
 
-    def test_operation_exists_at_version(self):
+    def test_operation_exists_at_version(self, operation_factory):
         """Operation added in v1 should exist at v1."""
-        from crane.delta import OperationAdded
         from crane.middleware import _get_api_state_at_version
 
-        op = make_operation(method="get", path="/users")
+        op = operation_factory(method="get", path="/users")
         migrations = [
             LoadedMigration(
                 sequence=1,
@@ -384,12 +352,11 @@ class TestOperationAtVersion:
         assert "/users" in state.path_operations
         assert len(state.path_operations["/users"]) == 1
 
-    def test_operation_removed_not_at_later_version(self):
+    def test_operation_removed_not_at_later_version(self, operation_factory):
         """Operation removed in v2 should not exist at v2."""
-        from crane.delta import OperationAdded, OperationRemoved
         from crane.middleware import _get_api_state_at_version
 
-        op = make_operation(method="get", path="/legacy")
+        op = operation_factory(method="get", path="/legacy")
         migrations = [
             LoadedMigration(
                 sequence=1,
@@ -425,12 +392,11 @@ class TestOperationAtVersion:
         state_v2 = _get_api_state_at_version(migrations, "v2")
         assert "/legacy" not in state_v2.path_operations
 
-    def test_operation_modified_at_version(self):
+    def test_operation_modified_at_version(self, operation_factory):
         """Operation modified in v2 should have new metadata at v2."""
-        from crane.delta import OperationAdded, OperationModified
         from crane.middleware import _get_api_state_at_version
 
-        op_v1 = make_operation(
+        op_v1 = operation_factory(
             method="get", path="/users", response_bodies=["#/components/schemas/UserV1"]
         )
 
@@ -490,7 +456,7 @@ class TestOperationAtVersion:
 class TestRecursiveTransformation:
     """Test that nested schema transformations are applied recursively."""
 
-    async def test_transforms_nested_schema(self):
+    async def test_transforms_nested_schema(self, operation_factory, migration_factory):
         """Transformer for nested AddressOut should be applied to PersonOut.address."""
 
         def downgrade_address(data: dict) -> dict:
@@ -531,11 +497,11 @@ class TestRecursiveTransformation:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs, delta=v2_delta),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs, delta=v2_delta),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
 
         data = {
             "name": "Alice",
@@ -550,7 +516,7 @@ class TestRecursiveTransformation:
             "address": {"street": "123 Main St"},
         }
 
-    async def test_transforms_array_of_nested_schemas(self):
+    async def test_transforms_array_of_nested_schemas(self, operation_factory, migration_factory):
         """Transformer should be applied to each item in an array of refs."""
 
         def downgrade_address(data: dict) -> dict:
@@ -592,11 +558,11 @@ class TestRecursiveTransformation:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs, delta=v2_delta),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs, delta=v2_delta),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
 
         data = {
             "name": "Alice",
@@ -616,7 +582,7 @@ class TestRecursiveTransformation:
             ],
         }
 
-    async def test_transforms_deeply_nested_schemas(self):
+    async def test_transforms_deeply_nested_schemas(self, operation_factory, migration_factory):
         """Transformation should work for deeply nested schemas."""
 
         def downgrade_city(data: dict) -> dict:
@@ -663,11 +629,11 @@ class TestRecursiveTransformation:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs, delta=v2_delta),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs, delta=v2_delta),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
 
         data = {
             "address": {
@@ -683,7 +649,9 @@ class TestRecursiveTransformation:
             },
         }
 
-    async def test_applies_both_parent_and_nested_transformers(self):
+    async def test_applies_both_parent_and_nested_transformers(
+        self, operation_factory, migration_factory
+    ):
         """Both parent and nested schema transformers should be applied."""
 
         def downgrade_person(data: dict) -> dict:
@@ -728,11 +696,11 @@ class TestRecursiveTransformation:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs, delta=v2_delta),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs, delta=v2_delta),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/PersonOut"])
+        operation = operation_factory(response_bodies=["#/components/schemas/PersonOut"])
 
         data = {
             "name": "Alice",
@@ -750,7 +718,7 @@ class TestRecursiveTransformation:
 
 
 class TestAsyncTransformers:
-    async def test_async_schema_downgrade(self):
+    async def test_async_schema_downgrade(self, operation_factory, migration_factory):
         async def async_downgrade(data: dict) -> dict:
             data.pop("async_field", None)
             return data
@@ -762,18 +730,18 @@ class TestAsyncTransformers:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(response_bodies=["#/components/schemas/Test"])
+        operation = operation_factory(response_bodies=["#/components/schemas/Test"])
         data = {"name": "test", "async_field": "value"}
 
         result = await transform_response(data, 200, operation, migrations, "v2", "v1")
 
         assert result == {"name": "test"}
 
-    async def test_async_schema_upgrade(self):
+    async def test_async_schema_upgrade(self, operation_factory, migration_factory):
         async def async_upgrade(data: dict) -> dict:
             data.setdefault("async_field", "default")
             return data
@@ -785,11 +753,13 @@ class TestAsyncTransformers:
         )
 
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", data_migs),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", data_migs),
         ]
 
-        operation = make_operation(method="post", request_body_schema=["#/components/schemas/Test"])
+        operation = operation_factory(
+            method="post", request_body_schema=["#/components/schemas/Test"]
+        )
         body = {"name": "test"}
 
         new_body, _ = await transform_request(body, {}, operation, migrations, "v1", "v2")

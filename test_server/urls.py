@@ -1,10 +1,10 @@
 from django.contrib import admin
 from django.urls import path
-from ninja import NinjaAPI
 
+from crane import VersionedNinjaAPI
 from test_app.api import router as persons_router
 
-api = NinjaAPI()
+api = VersionedNinjaAPI(api_label="default", app_label="test_app")
 api.add_router("/persons", persons_router)
 
 urlpatterns = [

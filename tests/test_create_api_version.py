@@ -88,10 +88,10 @@ class TestCreateApiVersion:
         assert search_op is not None
         assert search_op.method == "get"
         assert search_op.path == "/persons/search/model"
-        # PersonFilter has: name, email, address (nested PersonAddress with street, city)
+        # PersonFilter has: name, emails, address (nested PersonAddress with street, city)
         # These should be flattened into query params
         assert "name" in search_op.query_params
-        assert "email" in search_op.query_params
+        assert "emails" in search_op.query_params
         # Nested fields from PersonAddress
         assert "street" in search_op.query_params
         assert "city" in search_op.query_params
@@ -137,7 +137,7 @@ class TestCreateApiVersion:
 
         # Fields from PersonFilter
         assert "name" in search_op.query_params
-        assert "email" in search_op.query_params
+        assert "emails" in search_op.query_params
         assert "street" in search_op.query_params
         assert "city" in search_op.query_params
 
@@ -202,23 +202,23 @@ class TestSchemaDefinitions:
         assert any("PersonAddress" in name for name in schema_names)
 
     def test_person_in_schema_fields(self, api_version):
-        """PersonIn should have name and email fields."""
+        """PersonIn should have name and emails fields."""
         person_in_key = next(k for k in api_version.schema_definitions if "PersonIn" in k)
         schema = api_version.schema_definitions[person_in_key]
 
         assert "properties" in schema
         assert "name" in schema["properties"]
-        assert "email" in schema["properties"]
+        assert "emails" in schema["properties"]
         assert schema["properties"]["name"]["type"] == "string"
-        assert schema["properties"]["email"]["type"] == "string"
+        assert schema["properties"]["emails"]["type"] == "array"
 
     def test_person_out_schema_fields(self, api_version):
-        """PersonOut should have id, name, email, created_at fields."""
+        """PersonOut should have id, name, emails, created_at fields."""
         person_out_key = next(k for k in api_version.schema_definitions if "PersonOut" in k)
         schema = api_version.schema_definitions[person_out_key]
 
         assert "properties" in schema
         assert "id" in schema["properties"]
         assert "name" in schema["properties"]
-        assert "email" in schema["properties"]
+        assert "emails" in schema["properties"]
         assert "created_at" in schema["properties"]

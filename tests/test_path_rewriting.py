@@ -1,11 +1,8 @@
 """Tests for path rewriting utilities."""
 
-from pathlib import Path
-
-from crane.api_version import PathOperation
-from crane.data_migrations import DataMigrationSet, PathRewrite
-from crane.delta import HttpMethod, OperationAdded, OperationRemoved, VersionDelta
-from crane.migrations_generator import LoadedMigration, _detect_path_renames
+from crane.data_migrations import PathRewrite
+from crane.delta import OperationAdded, OperationRemoved, VersionDelta
+from crane.migrations_generator import _detect_path_renames
 from crane.path_rewriting import (
     build_path,
     get_path_rewrites_for_upgrade,
@@ -119,63 +116,40 @@ class TestRewritePath:
         assert result == "/users/{id}"
 
 
-def make_migration(
-    sequence: int,
-    from_version: str | None,
-    to_version: str,
-    path_rewrites: list[PathRewrite] | None = None,
-) -> LoadedMigration:
-    """Helper to create test migrations."""
-    data_migs = None
-    if path_rewrites:
-        data_migs = DataMigrationSet(path_rewrites=path_rewrites)
-
-    return LoadedMigration(
-        sequence=sequence,
-        slug=f"m{sequence}",
-        file_path=Path(f"m_{sequence:04d}_m{sequence}.py"),
-        dependencies=[],
-        from_version=from_version,
-        to_version=to_version,
-        delta=VersionDelta(actions=[]),
-        data_migrations=data_migs,
-    )
-
-
 class TestGetPathRewritesForUpgrade:
-    def test_same_version_returns_empty(self):
-        migrations = [make_migration(1, None, "v1")]
+    def test_same_version_returns_empty(self, migration_factory):
+        migrations = [migration_factory(1, None, "v1")]
         result = get_path_rewrites_for_upgrade(migrations, "v1", "v1")
         assert result == []
 
-    def test_no_rewrites_defined(self):
+    def test_no_rewrites_defined(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2"),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2"),
         ]
         result = get_path_rewrites_for_upgrade(migrations, "v1", "v2")
         assert result == []
 
-    def test_collects_rewrites_from_migration(self):
+    def test_collects_rewrites_from_migration(self, migration_factory):
         rewrites = [PathRewrite(old_path="/persons/{id}", new_path="/people/{id}")]
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(2, "v1", "v2", path_rewrites=rewrites),
+            migration_factory(1, None, "v1"),
+            migration_factory(2, "v1", "v2", path_rewrites=rewrites),
         ]
         result = get_path_rewrites_for_upgrade(migrations, "v1", "v2")
         assert len(result) == 1
         assert result[0].old_path == "/persons/{id}"
 
-    def test_collects_rewrites_across_multiple_versions(self):
+    def test_collects_rewrites_across_multiple_versions(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(
+            migration_factory(1, None, "v1"),
+            migration_factory(
                 2,
                 "v1",
                 "v2",
                 path_rewrites=[PathRewrite(old_path="/persons/{id}", new_path="/people/{id}")],
             ),
-            make_migration(
+            migration_factory(
                 3,
                 "v2",
                 "v3",
@@ -187,10 +161,10 @@ class TestGetPathRewritesForUpgrade:
         assert result[0].old_path == "/persons/{id}"
         assert result[1].old_path == "/people/{id}"
 
-    def test_downgrade_returns_empty(self):
+    def test_downgrade_returns_empty(self, migration_factory):
         migrations = [
-            make_migration(1, None, "v1"),
-            make_migration(
+            migration_factory(1, None, "v1"),
+            migration_factory(
                 2,
                 "v1",
                 "v2",
@@ -201,29 +175,10 @@ class TestGetPathRewritesForUpgrade:
         result = get_path_rewrites_for_upgrade(migrations, "v2", "v1")
         assert result == []
 
-    def test_unknown_version_returns_empty(self):
-        migrations = [make_migration(1, None, "v1")]
+    def test_unknown_version_returns_empty(self, migration_factory):
+        migrations = [migration_factory(1, None, "v1")]
         result = get_path_rewrites_for_upgrade(migrations, "v1", "v99")
         assert result == []
-
-
-def make_operation(
-    method: HttpMethod = "get",
-    path: str = "/test",
-    operation_id: str = "test_op",
-) -> PathOperation:
-    """Helper to create test operations."""
-    return PathOperation(
-        method=method,
-        path=path,
-        query_params={},
-        path_params={},
-        cookie_params={},
-        request_body_schema=[],
-        response_bodies=[],
-        operation_id=operation_id,
-        openapi_json={},
-    )
 
 
 class TestDetectPathRenames:
@@ -232,45 +187,47 @@ class TestDetectPathRenames:
         result = _detect_path_renames(delta)
         assert result == []
 
-    def test_no_renames_when_only_added(self):
+    def test_no_renames_when_only_added(self, operation_factory):
         delta = VersionDelta(
             actions=[
                 OperationAdded(
                     path="/users",
                     method="get",
-                    new_operation=make_operation(path="/users", operation_id="list_users"),
+                    new_operation=operation_factory(path="/users", operation_id="list_users"),
                 ),
             ]
         )
         result = _detect_path_renames(delta)
         assert result == []
 
-    def test_no_renames_when_only_removed(self):
+    def test_no_renames_when_only_removed(self, operation_factory):
         delta = VersionDelta(
             actions=[
                 OperationRemoved(
                     path="/users",
                     method="get",
-                    old_operation=make_operation(path="/users", operation_id="list_users"),
+                    old_operation=operation_factory(path="/users", operation_id="list_users"),
                 ),
             ]
         )
         result = _detect_path_renames(delta)
         assert result == []
 
-    def test_detects_rename_by_operation_id(self):
+    def test_detects_rename_by_operation_id(self, operation_factory):
         """When operation_id matches but path differs, it's a rename."""
         delta = VersionDelta(
             actions=[
                 OperationRemoved(
                     path="/persons/{id}",
                     method="get",
-                    old_operation=make_operation(path="/persons/{id}", operation_id="get_person"),
+                    old_operation=operation_factory(
+                        path="/persons/{id}", operation_id="get_person"
+                    ),
                 ),
                 OperationAdded(
                     path="/people/{id}",
                     method="get",
-                    new_operation=make_operation(path="/people/{id}", operation_id="get_person"),
+                    new_operation=operation_factory(path="/people/{id}", operation_id="get_person"),
                 ),
             ]
         )
@@ -278,19 +235,21 @@ class TestDetectPathRenames:
         assert len(result) == 1
         assert result[0] == ("/persons/{id}", "/people/{id}", "get")
 
-    def test_no_rename_when_operation_id_differs(self):
+    def test_no_rename_when_operation_id_differs(self, operation_factory):
         """Different operation_id means it's not a rename."""
         delta = VersionDelta(
             actions=[
                 OperationRemoved(
                     path="/persons/{id}",
                     method="get",
-                    old_operation=make_operation(path="/persons/{id}", operation_id="get_person"),
+                    old_operation=operation_factory(
+                        path="/persons/{id}", operation_id="get_person"
+                    ),
                 ),
                 OperationAdded(
                     path="/people/{id}",
                     method="get",
-                    new_operation=make_operation(
+                    new_operation=operation_factory(
                         path="/people/{id}",
                         operation_id="get_user",  # Different!
                     ),
@@ -300,48 +259,50 @@ class TestDetectPathRenames:
         result = _detect_path_renames(delta)
         assert result == []
 
-    def test_no_rename_when_method_differs(self):
+    def test_no_rename_when_method_differs(self, operation_factory):
         """Same operation_id but different method is not a rename."""
         delta = VersionDelta(
             actions=[
                 OperationRemoved(
                     path="/persons/{id}",
                     method="get",
-                    old_operation=make_operation(path="/persons/{id}", operation_id="person_op"),
+                    old_operation=operation_factory(path="/persons/{id}", operation_id="person_op"),
                 ),
                 OperationAdded(
                     path="/people/{id}",
                     method="post",  # Different method
-                    new_operation=make_operation(path="/people/{id}", operation_id="person_op"),
+                    new_operation=operation_factory(path="/people/{id}", operation_id="person_op"),
                 ),
             ]
         )
         result = _detect_path_renames(delta)
         assert result == []
 
-    def test_detects_multiple_renames(self):
+    def test_detects_multiple_renames(self, operation_factory):
         """Can detect multiple path renames in one migration."""
         delta = VersionDelta(
             actions=[
                 OperationRemoved(
                     path="/persons",
                     method="get",
-                    old_operation=make_operation(path="/persons", operation_id="list_persons"),
+                    old_operation=operation_factory(path="/persons", operation_id="list_persons"),
                 ),
                 OperationRemoved(
                     path="/persons/{id}",
                     method="get",
-                    old_operation=make_operation(path="/persons/{id}", operation_id="get_person"),
+                    old_operation=operation_factory(
+                        path="/persons/{id}", operation_id="get_person"
+                    ),
                 ),
                 OperationAdded(
                     path="/people",
                     method="get",
-                    new_operation=make_operation(path="/people", operation_id="list_persons"),
+                    new_operation=operation_factory(path="/people", operation_id="list_persons"),
                 ),
                 OperationAdded(
                     path="/people/{id}",
                     method="get",
-                    new_operation=make_operation(path="/people/{id}", operation_id="get_person"),
+                    new_operation=operation_factory(path="/people/{id}", operation_id="get_person"),
                 ),
             ]
         )

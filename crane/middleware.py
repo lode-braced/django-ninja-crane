@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
-from typing import Awaitable
+from typing import TYPE_CHECKING, Awaitable
 
 from asgiref.sync import async_to_sync, iscoroutinefunction, markcoroutinefunction
-from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 
 from crane.api_version import ApiVersion, PathOperation
@@ -25,6 +23,9 @@ from crane.transformers import (
     transform_response,
     transform_response_list,
 )
+
+if TYPE_CHECKING:
+    from crane.versioned_api import VersionedNinjaAPI
 
 
 def _get_api_state_at_version(
@@ -46,69 +47,21 @@ def _get_api_state_at_version(
     return get_known_api_state(migrations[: target_idx + 1])
 
 
-@dataclass
-class CraneSettings:
-    """Configuration for crane middleware."""
+class _APIContext:
+    """Context for a single API's version handling."""
 
-    version_header: str = "X-API-Version"
-    version_query_param: str = "api_version"
-    default_version: str = "latest"
-    migrations_module: str = ""
-    api_url_prefix: str = "/api/"
-
-    @classmethod
-    def from_django_settings(cls) -> "CraneSettings":
-        """Load settings from Django settings.CRANE_SETTINGS."""
-        crane_settings = getattr(settings, "CRANE_SETTINGS", {})
-        return cls(
-            version_header=crane_settings.get("version_header", cls.version_header),
-            version_query_param=crane_settings.get("version_query_param", cls.version_query_param),
-            default_version=crane_settings.get("default_version", cls.default_version),
-            migrations_module=crane_settings.get("migrations_module", cls.migrations_module),
-            api_url_prefix=crane_settings.get("api_url_prefix", cls.api_url_prefix),
-        )
-
-
-class VersionedAPIMiddleware:
-    """Middleware that handles API versioning transformations.
-
-    Configuration via Django settings:
-        CRANE_SETTINGS = {
-            "version_header": "X-API-Version",
-            "version_query_param": "api_version",
-            "default_version": "latest",
-            "migrations_module": "myapp.api_migrations",
-            "api_url_prefix": "/api/",
-        }
-
-    Usage:
-        Add to MIDDLEWARE in settings.py:
-        MIDDLEWARE = [
-            ...
-            "crane.middleware.VersionedAPIMiddleware",
-        ]
-    """
-
-    sync_capable = True
-    async_capable = True
-
-    def __init__(self, get_response):
-        self.get_response = get_response
-        self.settings = CraneSettings.from_django_settings()
+    def __init__(self, api: "VersionedNinjaAPI"):
+        self.api = api
         self._migrations: list[LoadedMigration] | None = None
-        self._api_states: dict[str, ApiVersion] = {}  # Cache of version -> ApiVersion
-
-        # Mark ourselves as a coroutine if get_response is async
-        if iscoroutinefunction(self.get_response):
-            markcoroutinefunction(self)  # type: ignore
+        self._api_states: dict[str, ApiVersion] = {}
 
     @property
     def migrations(self) -> list[LoadedMigration]:
-        """Lazy-load migrations."""
+        """Lazy-load migrations for this API."""
         if self._migrations is None:
-            if self.settings.migrations_module:
-                self._migrations = load_migrations(self.settings.migrations_module)
-            else:
+            try:
+                self._migrations = load_migrations(self.api.migrations_module)
+            except Exception:
                 self._migrations = []
         return self._migrations
 
@@ -117,85 +70,185 @@ class VersionedAPIMiddleware:
         """Get the latest API version."""
         return get_latest_version(self.migrations)
 
-    def _get_api_state(self, version: str) -> ApiVersion:
+    def get_api_state(self, version: str) -> ApiVersion:
         """Get the API state at a specific version, with caching."""
         if version not in self._api_states:
             self._api_states[version] = _get_api_state_at_version(self.migrations, version)
         return self._api_states[version]
 
-    def _extract_version(self, request: HttpRequest) -> str:
+
+class VersionedAPIMiddleware:
+    """Middleware that handles API versioning transformations.
+
+    Works with VersionedNinjaAPI instances registered in the application.
+
+    Usage:
+        1. Create VersionedNinjaAPI instances in your urls.py:
+            api = VersionedNinjaAPI(api_label="default")
+            api.add_router("/persons", persons_router)
+
+        2. Add middleware to settings.py:
+            MIDDLEWARE = [
+                ...
+                "crane.middleware.VersionedAPIMiddleware",
+            ]
+    """
+
+    sync_capable = True
+    async_capable = True
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self._api_contexts: dict[str, _APIContext] = {}
+        self._url_prefix_map: dict[str, "VersionedNinjaAPI"] | None = None
+
+        # Mark ourselves as a coroutine if get_response is async
+        if iscoroutinefunction(self.get_response):
+            markcoroutinefunction(self)  # type: ignore
+
+    def _get_url_prefix_map(self) -> dict[str, "VersionedNinjaAPI"]:
+        """Build mapping of URL prefixes to APIs (lazy, with caching)."""
+        if self._url_prefix_map is not None:
+            return self._url_prefix_map
+
+        from crane.versioned_api import VersionedNinjaAPI
+
+        self._url_prefix_map = {}
+
+        # First, try to detect URL prefixes from Django's URL resolver
+        self._detect_url_prefixes()
+
+        # Add any APIs that have explicit prefixes
+        for key, api in VersionedNinjaAPI.get_registry().items():
+            prefix = api.url_prefix
+            if prefix and prefix not in self._url_prefix_map:
+                self._url_prefix_map[prefix] = api
+
+        return self._url_prefix_map
+
+    def _detect_url_prefixes(self) -> None:
+        """Detect URL prefixes by introspecting Django's URL configuration."""
+        from crane.versioned_api import VersionedNinjaAPI
+
+        try:
+            from django.urls import get_resolver
+
+            resolver = get_resolver()
+            for key, api in VersionedNinjaAPI.get_registry().items():
+                prefix = self._find_api_prefix(resolver, api)
+                if prefix:
+                    api.url_prefix = prefix
+                    self._url_prefix_map[prefix] = api  # type: ignore
+        except Exception:
+            pass  # Fall back to explicit/default prefixes
+
+    def _find_api_prefix(self, resolver, target_api: "VersionedNinjaAPI") -> str | None:
+        """Recursively search URL patterns to find where an API is mounted."""
+        for pattern in resolver.url_patterns:
+            # Check if this pattern's namespace matches the API
+            if hasattr(pattern, "namespace"):
+                if pattern.namespace == target_api.urls_namespace:
+                    return "/" + str(pattern.pattern).rstrip("/") + "/"
+
+            # Check nested resolvers
+            if hasattr(pattern, "url_patterns"):
+                nested = self._find_api_prefix(pattern, target_api)
+                if nested:
+                    prefix = "/" + str(pattern.pattern).rstrip("/")
+                    return prefix + nested
+
+        return None
+
+    def _find_api_for_request(self, request: HttpRequest) -> "VersionedNinjaAPI | None":
+        """Find the appropriate API for a request based on URL path."""
+        path = request.path
+        url_map = self._get_url_prefix_map()
+
+        # Find the longest matching prefix
+        best_match: tuple[str, "VersionedNinjaAPI"] | None = None
+        for prefix, api in url_map.items():
+            if path.startswith(prefix):
+                if best_match is None or len(prefix) > len(best_match[0]):
+                    best_match = (prefix, api)
+
+        return best_match[1] if best_match else None
+
+    def _get_api_context(self, api: "VersionedNinjaAPI") -> _APIContext:
+        """Get or create the context for an API."""
+        key = api.registry_key
+        if key not in self._api_contexts:
+            self._api_contexts[key] = _APIContext(api)
+        return self._api_contexts[key]
+
+    def _extract_version(self, request: HttpRequest, api: "VersionedNinjaAPI") -> str:
         """Extract the requested API version from the request."""
-        # Check header first
-        version = request.headers.get(self.settings.version_header)
+        version = request.headers.get(api.version_header)
         if version:
             return version
+        return api.default_version
 
-        # Check query param
-        version = request.GET.get(self.settings.version_query_param)
-        if version:
-            return version
-
-        # Use default
-        return self.settings.default_version
-
-    def _resolve_version(self, version: str) -> str | None:
+    def _resolve_version(self, version: str, ctx: _APIContext) -> str | None:
         """Resolve 'latest' to actual version, validate version exists."""
         if version == "latest":
-            return self.latest_version
+            return ctx.latest_version
 
         # Check if version exists in migrations
-        for m in self.migrations:
+        for m in ctx.migrations:
             if m.to_version == version:
                 return version
 
         return None
 
-    def _find_operation(self, request: HttpRequest, version: str) -> PathOperation | None:
-        """Find the PathOperation for this request at a specific API version.
-
-        This reconstructs the API state at the given version to find the
-        operation as it existed at that point in time. This correctly handles
-        operations that were modified, deleted, or recreated across versions.
-        """
+    def _find_operation(
+        self,
+        request: HttpRequest,
+        version: str,
+        api: "VersionedNinjaAPI",
+        ctx: _APIContext,
+    ) -> PathOperation | None:
+        """Find the PathOperation for this request at a specific API version."""
         path = request.path
         method = (request.method or "GET").lower()
 
         # Get the API state at the specified version
-        api_state = self._get_api_state(version)
+        api_state = ctx.get_api_state(version)
 
         # Search through all operations in the reconstructed state
         for op_path, operations in api_state.path_operations.items():
-            if self._path_matches(op_path, path):
+            if self._path_matches(op_path, path, api.url_prefix):
                 for op in operations:
                     if op.method == method:
                         return op
 
         return None
 
-    def _path_matches(self, template: str, path: str) -> bool:
+    def _path_matches(self, template: str, path: str, url_prefix: str) -> bool:
         """Check if a path matches a template with parameters."""
         # Remove api prefix from path for comparison
-        if path.startswith(self.settings.api_url_prefix):
-            path = path[len(self.settings.api_url_prefix) - 1 :]
+        if path.startswith(url_prefix):
+            path = path[len(url_prefix) - 1 :]
 
         # Convert template params like {person_id} to regex
         pattern = re.sub(r"\{[^}]+\}", r"[^/]+", template)
         pattern = f"^{pattern}$"
         return bool(re.match(pattern, path))
 
-    def _rewrite_path(self, request: HttpRequest, from_version: str, to_version: str) -> None:
-        """Rewrite the request path if it changed between versions.
-
-        This allows old clients to continue using old URL paths even after
-        endpoints have been renamed.
-        """
+    def _rewrite_path(
+        self,
+        request: HttpRequest,
+        from_version: str,
+        to_version: str,
+        api: "VersionedNinjaAPI",
+        ctx: _APIContext,
+    ) -> None:
+        """Rewrite the request path if it changed between versions."""
         # Get path rewrites needed for this version upgrade
-        rewrites = get_path_rewrites_for_upgrade(self.migrations, from_version, to_version)
+        rewrites = get_path_rewrites_for_upgrade(ctx.migrations, from_version, to_version)
         if not rewrites:
             return
 
         # Extract the API path (without prefix)
-        prefix = self.settings.api_url_prefix.rstrip("/")
+        prefix = api.url_prefix.rstrip("/")
         if request.path.startswith(prefix):
             api_path = request.path[len(prefix) :]
         else:
@@ -224,17 +277,20 @@ class VersionedAPIMiddleware:
 
     def _sync_call(self, request: HttpRequest) -> HttpResponse:
         """Synchronous middleware implementation."""
-        # Skip if not an API request
-        if not request.path.startswith(self.settings.api_url_prefix):
+        # Find the API for this request
+        api = self._find_api_for_request(request)
+        if api is None:
             return self.get_response(request)
 
-        # Skip if no migrations configured
-        if not self.migrations:
+        ctx = self._get_api_context(api)
+
+        # Skip if no migrations
+        if not ctx.migrations:
             return self.get_response(request)
 
         # Extract and resolve version
-        requested_version = self._extract_version(request)
-        resolved_version = self._resolve_version(requested_version)
+        requested_version = self._extract_version(request, api)
+        resolved_version = self._resolve_version(requested_version, ctx)
 
         if resolved_version is None:
             return JsonResponse(
@@ -242,7 +298,7 @@ class VersionedAPIMiddleware:
                 status=400,
             )
 
-        latest = self.latest_version
+        latest = ctx.latest_version
         if latest is None:
             return JsonResponse(
                 {"error": "No API versions available"},
@@ -255,14 +311,14 @@ class VersionedAPIMiddleware:
 
         # Rewrite path if needed (handles URL changes across versions)
         if resolved_version != latest:
-            self._rewrite_path(request, resolved_version, latest)
+            self._rewrite_path(request, resolved_version, latest, api, ctx)
 
         # Find operation metadata at the requested version
-        operation = self._find_operation(request, resolved_version)
+        operation = self._find_operation(request, resolved_version, api, ctx)
 
         # Transform request if needed (upgrade from old version to current)
         if operation and resolved_version != latest:
-            self._transform_request_sync(request, operation, resolved_version, latest)
+            self._transform_request_sync(request, operation, resolved_version, latest, ctx)
 
         # Call the actual view
         response = self.get_response(request)
@@ -274,23 +330,28 @@ class VersionedAPIMiddleware:
             and isinstance(response, (HttpResponse, JsonResponse))
             and response.get("Content-Type", "").startswith("application/json")
         ):
-            response = self._transform_response_sync(response, operation, latest, resolved_version)
+            response = self._transform_response_sync(
+                response, operation, latest, resolved_version, ctx
+            )
 
         return response
 
     async def _async_call(self, request: HttpRequest) -> HttpResponse:
         """Asynchronous middleware implementation."""
-        # Skip if not an API request
-        if not request.path.startswith(self.settings.api_url_prefix):
+        # Find the API for this request
+        api = self._find_api_for_request(request)
+        if api is None:
             return await self.get_response(request)
 
-        # Skip if no migrations configured
-        if not self.migrations:
+        ctx = self._get_api_context(api)
+
+        # Skip if no migrations
+        if not ctx.migrations:
             return await self.get_response(request)
 
         # Extract and resolve version
-        requested_version = self._extract_version(request)
-        resolved_version = self._resolve_version(requested_version)
+        requested_version = self._extract_version(request, api)
+        resolved_version = self._resolve_version(requested_version, ctx)
 
         if resolved_version is None:
             return JsonResponse(
@@ -298,7 +359,7 @@ class VersionedAPIMiddleware:
                 status=400,
             )
 
-        latest = self.latest_version
+        latest = ctx.latest_version
         if latest is None:
             return JsonResponse(
                 {"error": "No API versions available"},
@@ -311,14 +372,14 @@ class VersionedAPIMiddleware:
 
         # Rewrite path if needed (handles URL changes across versions)
         if resolved_version != latest:
-            self._rewrite_path(request, resolved_version, latest)
+            self._rewrite_path(request, resolved_version, latest, api, ctx)
 
         # Find operation metadata at the requested version
-        operation = self._find_operation(request, resolved_version)
+        operation = self._find_operation(request, resolved_version, api, ctx)
 
         # Transform request if needed (upgrade from old version to current)
         if operation and resolved_version != latest:
-            await self._transform_request_async(request, operation, resolved_version, latest)
+            await self._transform_request_async(request, operation, resolved_version, latest, ctx)
 
         # Call the actual view
         response = await self.get_response(request)
@@ -331,7 +392,7 @@ class VersionedAPIMiddleware:
             and response.get("Content-Type", "").startswith("application/json")
         ):
             response = await self._transform_response_async(
-                response, operation, latest, resolved_version
+                response, operation, latest, resolved_version, ctx
             )
 
         return response
@@ -342,17 +403,20 @@ class VersionedAPIMiddleware:
         operation: PathOperation,
         from_version: str,
         to_version: str,
+        ctx: _APIContext,
     ) -> None:
         """Transform the request body from old version to current (sync)."""
-        async_to_sync(self._transform_request_async)(request, operation, from_version, to_version)
+        async_to_sync(self._transform_request_async)(
+            request, operation, from_version, to_version, ctx
+        )
 
-    # noinspection PyUnreachableCode
     async def _transform_request_async(
         self,
         request: HttpRequest,
         operation: PathOperation,
         from_version: str,
         to_version: str,
+        ctx: _APIContext,
     ) -> None:
         """Transform the request body and params from old version to current (async)."""
         # Parse body if JSON, None otherwise (not empty dict - let transformers handle it)
@@ -369,7 +433,7 @@ class VersionedAPIMiddleware:
             body,
             query_params,
             operation,
-            self.migrations,
+            ctx.migrations,
             from_version,
             to_version,
         )
@@ -396,10 +460,11 @@ class VersionedAPIMiddleware:
         operation: PathOperation,
         from_version: str,
         to_version: str,
+        ctx: _APIContext,
     ) -> HttpResponse:
         """Transform the response body from current version to requested (sync)."""
         return async_to_sync(self._transform_response_async)(
-            response, operation, from_version, to_version
+            response, operation, from_version, to_version, ctx
         )
 
     async def _transform_response_async(
@@ -408,6 +473,7 @@ class VersionedAPIMiddleware:
         operation: PathOperation,
         from_version: str,
         to_version: str,
+        ctx: _APIContext,
     ) -> HttpResponse:
         """Transform the response body from current version to requested (async)."""
         try:
@@ -424,7 +490,7 @@ class VersionedAPIMiddleware:
                 data,
                 status_code,
                 operation,
-                self.migrations,
+                ctx.migrations,
                 from_version,
                 to_version,
             )
@@ -433,7 +499,7 @@ class VersionedAPIMiddleware:
                 data,
                 status_code,
                 operation,
-                self.migrations,
+                ctx.migrations,
                 from_version,
                 to_version,
             )

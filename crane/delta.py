@@ -272,6 +272,20 @@ def _compare_operations(
         old_op.response_bodies, new_op.response_bodies
     )
 
+    # If all diffs are empty, there's no semantic change (e.g., only parameter order differs)
+    has_changes = (
+        old_json_diff
+        or new_json_diff
+        or old_params
+        or new_params
+        or old_body_refs
+        or new_body_refs
+        or old_response_refs
+        or new_response_refs
+    )
+    if not has_changes:
+        return None
+
     return OperationModified(
         path=path,
         method=method,
